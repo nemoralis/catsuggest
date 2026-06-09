@@ -161,11 +161,11 @@
 											[{{ cat.sources.join(', ') }}]
 										</span>
 									</cdx-checkbox>
-									<div v-if="cat.removals && cat.removals.length > 0" class="catsuggest-removal-tree">
-										<div v-for="( rem, remIdx ) in cat.removals" :key="rem.title" class="catsuggest-removal-item" :class="{ 'catsuggest-removal-item--last': remIdx === cat.removals.length - 1 }">
+									<div v-if="cat.removals && cat.removals.length > 0" style="margin: 4px 0 8px 28px;">
+										<div v-for="rem in cat.removals" :key="rem.title" style="margin-bottom: 2px;">
 											<cdx-checkbox v-model="rem.selected" status="error">
-												<s>{{ rem.title }}</s>
-												<template #description>Üst kateqoriya — silinəcək</template>
+												<s><a :href="getPageUrl(rem.title)" target="_blank" class="catsuggest-suggestion__link">{{ rem.title }}</a></s>
+												<template #description>Daha uyğun kateqoriya əlavə edildiyi üçün silinəcək</template>
 											</cdx-checkbox>
 										</div>
 									</div>
@@ -788,7 +788,8 @@ export default {
 				}
 
 				if ( this.mode === 'parentCats' ) {
-					this.suggestions = await buildParentCatsSuggestions( resolvedResults, localData, this.api );
+			this.suggestions = await buildParentCatsSuggestions( resolvedResults, localData, this.api );
+			
 				} else {
 					this.suggestions = await buildMembersSuggestions( resolvedResults, localData, this.api );
 				}

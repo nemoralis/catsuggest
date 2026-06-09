@@ -109,8 +109,7 @@ async function build() {
 		banner: {
 			js: `/*!
  * CatSuggest — Kateqoriya təklifçisi
- * Source: https://gitlab.com/nemoralis/catsuggest
- * License: GPL-3.0-or-later
+ * Source: https://gitlab.wikimedia.org/nmw03/catsuggest
  */`
 		}
 	} );

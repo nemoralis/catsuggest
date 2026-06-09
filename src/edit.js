@@ -6,6 +6,7 @@ const { retryApiCall } = require( './api.js' );
 async function editPage( api, title, params ) {
 	return api
 		.postWithEditToken( Object.assign( {
+			action: 'edit',
 			title,
 			tags: 'catsuggest',
 			maxlag: MAXLAG_SECONDS,
