@@ -109,7 +109,10 @@ async function build() {
 		banner: {
 			js: `/*!
  * CatSuggest — Kateqoriya təklifçisi
- * Source: https://gitlab.wikimedia.org/nmw03/catsuggest
+ * Ətraflı: https://w.wiki/Qf9x
+ * Mənbə kodu: https://gitlab.wikimedia.org/nmw03/catsuggest
+ * 
+ * Bu fayl birbaşa redaktə üçün nəzərdə tutulmayıb, dəyişikliklərinizi Gitlaba göndərin.
  */`
 		}
 	} );
