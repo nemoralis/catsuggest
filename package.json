@@ -1,0 +1,28 @@
+{
+  "name": "catsuggest",
+  "version": "1.0.0",
+  "description": "",
+  "main": "catsuggest.js",
+  "scripts": {
+    "build": "node build.js",
+    "dev": "concurrently -n build,serve \"npm run build:watch\" \"npm run serve:watch\"",
+    "serve": "node bin/server.js",
+    "serve:watch": "nodemon --watch dist --watch catsuggest.css --ext js,css bin/server.js",
+    "deploy": "node bin/deploy.js",
+    "lint": "eslint \"src/*.js\"",
+    "test": "npm run lint"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.7",
+    "concurrently": "^10.0.3",
+    "esbuild": "^0.28.0",
+    "eslint": "^8.57.1",
+    "eslint-config-wikimedia": "^0.32.4",
+    "mwn": "^3.0.2",
+    "nodemon": "^3.1.14",
+    "vite": "^8.0.16"
+  }
+}
