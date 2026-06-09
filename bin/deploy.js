@@ -31,7 +31,7 @@ bot.login().then( () => {
 	const outjs = fs.readFileSync( __dirname + '/' + JS_SOURCE ).toString();
 	const outcss = fs.readFileSync( __dirname + '/' + CSS_SOURCE ).toString();
 
-	bot.save( JS_PAGE, outjs, `{ sha.trim() }: ${ summary }` ).then( () => {
+	bot.save( JS_PAGE, outjs, `${ sha.trim() }: ${ summary }` ).then( () => {
 		console.log( `Successfully saved dist/catsuggest.js to ${ JS_PAGE }` );
 	} );
 
