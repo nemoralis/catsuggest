@@ -679,15 +679,15 @@ export default {
 			}
 
 			const pageName = mw.config.get( 'wgPageName' );
-			const pages = await fetchFullQuery( this.api, {
+			const result = await fetchFullQuery( this.api, {
 				action: 'query',
 				titles: pageName,
 				prop: 'categories',
 				cllimit: 'max'
 			} );
-			const page = Object.values( pages )[ 0 ];
-			return page && page.categories ?
-				page.categories.map( ( c ) => c.title ) :
+			const pageData = result.pages && Object.values( result.pages )[ 0 ];
+			return pageData && pageData.categories ?
+				pageData.categories.map( ( c ) => c.title ) :
 				[];
 		},
 
