@@ -23,19 +23,20 @@ const bot = new Mwn( {
 } );
 
 // Version info for edit summary.
-const sha = execSync( 'git rev-parse --short HEAD' ).toString();
+const fullSha = execSync( 'git rev-parse HEAD' ).toString().trim();
+const shortSha = fullSha.slice( 0, 7 );
 const summary = process.argv[ 2 ] || execSync( 'git log -1 --pretty=%B' ).toString().trim();
-const version = require( '../package.json' ).version;
+const commitLink = `[https://gitlab.wikimedia.org/nmw03/catsuggest/-/commit/${ fullSha } ${ shortSha }]`;
 
 bot.login().then( () => {
 	const outjs = fs.readFileSync( __dirname + '/' + JS_SOURCE ).toString();
 	const outcss = fs.readFileSync( __dirname + '/' + CSS_SOURCE ).toString();
 
-	bot.save( JS_PAGE, outjs, `${ sha.trim() }: ${ summary }` ).then( () => {
+	bot.save( JS_PAGE, outjs, `${ commitLink }: ${ summary }` ).then( () => {
 		console.log( `Successfully saved dist/catsuggest.js to ${ JS_PAGE }` );
 	} );
 
-	bot.save( CSS_PAGE, outcss, `${ sha.trim() }: ${ summary }` ).then( () => {
+	bot.save( CSS_PAGE, outcss, `${ commitLink }: ${ summary }` ).then( () => {
 		console.log( `Successfully saved catsuggest.css to ${ CSS_PAGE }` );
 	} );
 } );
