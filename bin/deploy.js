@@ -26,7 +26,7 @@ const bot = new Mwn( {
 const fullSha = execSync( 'git rev-parse HEAD' ).toString().trim();
 const shortSha = fullSha.slice( 0, 7 );
 const summary = process.argv[ 2 ] || execSync( 'git log -1 --pretty=%B' ).toString().trim();
-const commitLink = `[https://gitlab.wikimedia.org/nmw03/catsuggest/-/commit/${ fullSha } ${ shortSha }]`;
+const commitLink = `[[gitlab:nmw03/catsuggest/-/commit/${ fullSha }|${ shortSha }]]`;
 
 bot.login().then( () => {
 	const outjs = fs.readFileSync( __dirname + '/' + JS_SOURCE ).toString();
