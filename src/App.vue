@@ -399,7 +399,7 @@ export default {
 			return 'Əsas vikilər (' + this.largeSitelinks.length + ')';
 		},
 		smallTabLabel() {
-			return 'Digər vikilər (' + this.smallSitelinks.length + ')' + ( this.hasSmallLangSelected ? ' (!)' : '' );
+			return 'Digər vikilər (' + this.smallSitelinks.length + ')';
 		},
 		suggestedPages() {
 			return this.suggestions.filter( ( s ) => !s.isCategory );
