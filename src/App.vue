@@ -50,7 +50,7 @@
 					</div>
 
 					<cdx-tabs v-model:active="langTab" style="margin-top: 12px; margin-bottom: 12px;">
-						<cdx-tab name="large" :label="largeTabLabel" :disabled="loading" />
+						<cdx-tab name="large" :label="largeTabLabel" :disabled="loading || largeSitelinks.length === 0" />
 						<cdx-tab name="small" :label="smallTabLabel" :disabled="loading" />
 					</cdx-tabs>
 
@@ -1034,6 +1034,11 @@ export default {
 			if ( newVal === 'results' ) {
 				this.hasScrolledResults = false;
 				this.$nextTick( () => this.setupScrollObserver() );
+			}
+		},
+		sitelinks() {
+			if ( this.langTab === 'large' && this.largeSitelinks.length === 0 ) {
+				this.langTab = 'small';
 			}
 		}
 	},
