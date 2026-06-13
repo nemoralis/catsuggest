@@ -1,7 +1,6 @@
 const { ALLOWED_NAMESPACES, log } = require( './constants.js' );
 const { createLocalApi, createWikidataApi } = require( './api.js' );
-
-mw.loader.load( 'http://localhost:5500/catsuggest.css', 'text/css' );
+const enabledUsers = require( './catsuggest-check.json' );
 
 mw.loader
 	.using( [
@@ -32,18 +31,16 @@ mw.loader
 			return;
 		}
 
-		let isAuthorized = false;
-		const userGroups = mw.config.get( 'wgUserGroups' ) || [];
-
-		if ( userGroups.includes( 'sysop' ) || userGroups.includes( 'interface-admin' ) ) {
-			isAuthorized = true;
-		}
-
-		log( 'User:', currentUser, '| Authorized:', isAuthorized, '| Groups:', userGroups );
-
 		const api = createLocalApi();
 		const wikidataApi = createWikidataApi();
 
+		const userGroups = mw.config.get( 'wgUserGroups' ) || [];
+		const isAuthorized = userGroups.includes( 'sysop' ) ||
+			userGroups.includes( 'interface-admin' ) ||
+			( Array.isArray( enabledUsers.enabledusers ) &&
+				enabledUsers.enabledusers.includes( currentUser ) );
+
+		log( 'User:', currentUser, '| Authorized:', isAuthorized, '| Groups:', userGroups );
 		const createAppComponent = require( './App.vue' );
 		const App = createAppComponent( Vue, codex );
 

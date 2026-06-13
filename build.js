@@ -3,6 +3,17 @@ const fs = require( 'fs' );
 const path = require( 'path' );
 const { parse, compileTemplate } = require( '@vue/compiler-sfc' );
 
+function externalizeJsonPlugin() {
+	return {
+		name: 'external-json',
+		setup( build ) {
+			build.onResolve( { filter: /catsuggest-check\.json$/ }, ( args ) => {
+				return { path: args.path, external: true };
+			} );
+		}
+	};
+}
+
 function vueSfcPlugin() {
 	return {
 		name: 'vue-sfc',
@@ -104,7 +115,7 @@ async function build() {
 		target: 'es2017',
 		outfile: 'dist/catsuggest.js',
 		external: [ 'vue', '@wikimedia/codex', 'mediawiki.ForeignApi', 'mediawiki.util', 'mediawiki.storage', 'mediawiki.Title' ],
-		plugins: [ vueSfcPlugin() ],
+		plugins: [ externalizeJsonPlugin(), vueSfcPlugin() ],
 		minify: true,
 		banner: {
 			js: `/*!
