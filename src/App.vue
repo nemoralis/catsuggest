@@ -1,6 +1,6 @@
 <template>
 <teleport to="#catsuggest-btn-container" v-if="showButtonTarget">
-	<cdx-button size="medium" action="progressive" :disabled="!qid" @click="toggleDialog">
+	<cdx-button size="medium" :action="devMode ? 'destructive' : 'progressive'" :disabled="!qid" @click="toggleDialog">
 		{{ isCatPage ? 'Təkliflər' : 'Kateqoriya təklifləri' }}
 	</cdx-button>
 </teleport>
@@ -295,7 +295,8 @@ export default {
 	props: {
 		isAuthorized: Boolean,
 		api: Object,
-		wikidataApi: Object
+		wikidataApi: Object,
+		devMode: Boolean
 	},
 	data() {
 		const isCatPage = mw.config.get( 'wgNamespaceNumber' ) === CATEGORY_NAMESPACE;

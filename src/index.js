@@ -1,6 +1,7 @@
-const { ALLOWED_NAMESPACES, log } = require( './constants.js' );
+const { ALLOWED_NAMESPACES, DEV_MODE, log } = require( './constants.js' );
 const { createLocalApi, createWikidataApi } = require( './api.js' );
-const enabledUsers = require( './catsuggest-check.json' );
+
+const enabledUsers = DEV_MODE ? [] : require( './catsuggest-check.json' ).enabledusers;
 
 mw.loader
 	.using( [
@@ -35,16 +36,18 @@ mw.loader
 		const wikidataApi = createWikidataApi();
 
 		const userGroups = mw.config.get( 'wgUserGroups' ) || [];
-		const isAuthorized = userGroups.includes( 'sysop' ) ||
+		const isAuthorized = DEV_MODE || userGroups.includes( 'sysop' ) ||
 			userGroups.includes( 'interface-admin' ) ||
-			( Array.isArray( enabledUsers.enabledusers ) &&
-				enabledUsers.enabledusers.includes( currentUser ) );
+			( Array.isArray( enabledUsers ) && enabledUsers.includes( currentUser ) );
 
 		log( 'User:', currentUser, '| Authorized:', isAuthorized, '| Groups:', userGroups );
+		if ( DEV_MODE ) {
+			mw.log.warn( '[CatSuggest] Dev mode active' );
+		}
 		const createAppComponent = require( './App.vue' );
 		const App = createAppComponent( Vue, codex );
 
-		const app = createMwApp( App, { isAuthorized, api, wikidataApi } );
+		const app = createMwApp( App, { isAuthorized, api, wikidataApi, devMode: DEV_MODE } );
 
 		const container = document.createElement( 'div' );
 		document.body.appendChild( container );
