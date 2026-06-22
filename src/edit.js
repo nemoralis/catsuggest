@@ -34,12 +34,12 @@ async function fetchPageContent( api, title ) {
 
 	const pages = pageResp.query && pageResp.query.pages;
 	if ( !pages ) {
-		throw new Error( 'Səhifə məzmunu alınmadı' );
+		throw new Error( 'Səhifə məlumatları API-dən alınmadı. Səhifənin mövcud olduğunu yoxlayın.' );
 	}
 	const page = Object.values( pages )[ 0 ];
 	const content = page.revisions && page.revisions[ 0 ] && page.revisions[ 0 ][ '*' ];
 	if ( content === undefined || content === null ) {
-		throw new Error( 'Səhifə məzmunu tapılmadı' );
+		throw new Error( 'Səhifənin məzmunu tapılmadı. Səhifə silinmiş və ya yaradılmamış ola bilər.' );
 	}
 	return content;
 }

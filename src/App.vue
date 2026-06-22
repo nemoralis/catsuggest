@@ -51,7 +51,7 @@
 
 					<cdx-tabs v-model:active="langTab" style="margin-top: 12px; margin-bottom: 12px;">
 						<cdx-tab name="large" :label="largeTabLabel" :disabled="loading || largeSitelinks.length === 0" />
-						<cdx-tab name="small" :label="smallTabLabel" :disabled="loading" />
+						<cdx-tab name="small" :label="smallTabLabel" :disabled="loading || smallSitelinks.length === 0" />
 					</cdx-tabs>
 
 					<cdx-message
@@ -73,6 +73,9 @@
 					</div>
 
 					<div v-if="langTab === 'large'" :class="gridClass">
+						<div v-if="filteredSitelinks.length === 0" style="color: var(--color-subtle, #72777d); font-size: 14px; padding: 8px 0; grid-column: 1 / -1;">
+							Heç bir dil tapılmadı.
+						</div>
 						<div v-for="site in filteredSitelinks" :key="site.site">
 							<cdx-checkbox v-model="selectedSites" :inputValue="site.site" :disabled="loading">
 								{{ site.name }} ({{ site.lang }})
@@ -81,13 +84,13 @@
 					</div>
 
 					<div v-if="langTab === 'small'" :class="gridClass">
+						<div v-if="filteredSitelinks.length === 0" style="color: var(--color-subtle, #72777d); font-size: 14px; padding: 8px 0; grid-column: 1 / -1;">
+							Heç bir dil tapılmadı.
+						</div>
 						<div v-for="site in filteredSitelinks" :key="site.site">
 							<cdx-checkbox v-model="selectedSites" :inputValue="site.site" :disabled="loading">
 								{{ site.name }} ({{ site.lang }})
 							</cdx-checkbox>
-						</div>
-						<div v-if="smallSitelinks.length === 0" style="color: var(--color-base); font-size: 14px; padding: 8px 0; grid-column: 1 / -1;">
-							Bu Vikidata elementi üçün başqa viki tapılmadı.
 						</div>
 					</div>
 
@@ -180,7 +183,8 @@
 
 		<div v-else-if="status === 'editing'" class="catsuggest-progress">
 			<cdx-progress-bar aria-label="Redaktə edilir" />
-			<p style="margin-top: 12px;">{{ currentProcessingTitle }} ({{ processedCount }}/{{ totalProcessingCount }})</p>
+			<p v-if="mode === 'parentCats'" style="margin-top: 12px;">Kateqoriyalar əlavə edilir</p>
+			<p v-else style="margin-top: 12px;">{{ currentProcessingTitle }} ({{ processedCount }}/{{ totalProcessingCount }})</p>
 		</div>
 
 		<div v-else-if="status === 'success'" class="catsuggest-success">
@@ -449,7 +453,7 @@ export default {
 
 		async initGadget() {
 			if ( !this.qid ) {
-				this.error = 'Bu səhifə Vikidatada tapılmadı.';
+				this.error = 'Bu səhifə Vikidataya qoşulmayıb. Zəhmət olmasa, əvvəlcə səhifəni Vikidata elementinə qoşun.';
 				return;
 			}
 
@@ -465,7 +469,7 @@ export default {
 
 				const entity = wdResp.entities[ this.qid ];
 				if ( !entity || !entity.sitelinks ) {
-					this.error = 'Bu səhifənin interviki keçidi mövcud deyil.';
+					this.error = 'Bu səhifənin interviki keçidləri mövcud deyil. Səhifənin Vikidata elementinə digər dillərdəki səhifələr əlavə edilməyib.';
 					this.status = 'idle';
 					return;
 				}
@@ -504,7 +508,7 @@ export default {
 				this.sitelinks.sort( ( a, b ) => a.lang.localeCompare( b.lang ) );
 
 				if ( this.sitelinks.length === 0 ) {
-					this.error = 'Digər dillərdə uyğun məqalə tapılmadı.';
+					this.error = 'Seçdiyiniz dillərin heç birində bu səhifənin qarşılığı tapılmadı. Ola bilər ki, bu səhifə yalnız Azərbaycanca Vikipediyada mövcuddur.';
 					this.status = 'idle';
 					return;
 				}
@@ -541,7 +545,7 @@ export default {
 			} catch ( _err ) {
 				mw.log.warn( 'CatSuggest init error:', _err );
 				const errMsg = getErrorMessage( _err );
-				this.error = 'Sitelink məlumatları alınarkən xəta baş verdi: ' + errMsg;
+				this.error = 'Digər vikilərin siyahısı alınarkən xəta baş verdi. İnternet bağlantınızı yoxlayın və yenidən cəhd edin. Xəta: ' + errMsg;
 				this.status = 'idle';
 			} finally {
 				this.loading = false;
@@ -767,8 +771,8 @@ export default {
 				if ( globalQidSet.size === 0 ) {
 					this.error =
 						this.mode === 'parentCats' ?
-							'Seçilmiş dillərdə kateqoriya tapılmadı.' :
-							'Seçilmiş dillərdə bu kateqoriyanın üzvü tapılmadı.';
+							'Seçilmiş dillərdə kateqoriya tapılmadı. Daha çox dil seçməyə və ya başqa dilləri sınamağa cəhd edin.' :
+							'Seçilmiş dillərdə bu kateqoriyanın üzvü tapılmadı. Kateqoriyanın daha populyar dillərdə mövcud olduğunu yoxlayın.';
 					this.status = 'idle';
 					return;
 				}
@@ -782,7 +786,7 @@ export default {
 				);
 
 				if ( resolvedResults.length === 0 ) {
-					this.error = 'Azvikidə uyğun məqalə/kateqoriya tapılmadı.';
+					this.error = 'Müqayisə edilən vikilərdəki kateqoriyaların heç biri Azərbaycanca Vikipediyada mövcud deyil. Ya seçilmiş dillərdəki kateqoriyalar burada yaradılmayıb, ya da səhifənin adı fərqlidir.';
 					this.status = 'idle';
 					return;
 				}
@@ -1037,7 +1041,7 @@ export default {
 			}
 		},
 		sitelinks() {
-			if ( this.langTab === 'large' && this.largeSitelinks.length === 0 ) {
+			if ( this.langTab === 'large' && this.largeSitelinks.length === 0 && this.smallSitelinks.length > 0 ) {
 				this.langTab = 'small';
 			}
 		}
