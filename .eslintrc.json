@@ -1,6 +1,7 @@
 {
 	"extends": [
 		"wikimedia/client",
-		"wikimedia/mediawiki"
+		"wikimedia/mediawiki",
+		"prettier"
 	]
 }

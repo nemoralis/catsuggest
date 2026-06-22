@@ -1,4 +1,4 @@
-const ALLOWED_NAMESPACES = [ 0, 4, 12, 14, 100 ];
+const ALLOWED_NAMESPACES = [0, 4, 12, 14, 100];
 const CATEGORY_NAMESPACE = 14;
 const CURRENT_WIKI = 'azwiki';
 const CATEGORY_PREFIX = 'Kateqoriya:';
@@ -31,7 +31,7 @@ const MAX_PROCESSED_PAGES = 500;
 const MAX_RETRIES = 3;
 const RETRY_BASE_DELAY_MS = 5000;
 const USER_AGENT = 'Gadget-CatSuggest/2.0 (https://w.wiki/Qf9x)';
-const EXCLUDED_SITES = new Set( [
+const EXCLUDED_SITES = new Set([
 	'commonswiki',
 	'metawiki',
 	'specieswiki',
@@ -40,9 +40,9 @@ const EXCLUDED_SITES = new Set( [
 	'foundationwiki',
 	'testwiki',
 	'test2wiki',
-	'sourceswiki'
-] );
-const EXCLUDED_PARENT_QIDS = new Set( [
+	'sourceswiki',
+]);
+const EXCLUDED_PARENT_QIDS = new Set([
 	'Q6697530',
 	'Q9507857',
 	'Q1410641',
@@ -54,8 +54,8 @@ const EXCLUDED_PARENT_QIDS = new Set( [
 	'Q13100012',
 	'Q10152088',
 	'Q1457595',
-	'Q7216166'
-] );
+	'Q7216166',
+]);
 const EXCLUDED_TITLE_KEYWORDS = [
 	'doğulanlar',
 	'vəfat edənlər',
@@ -74,7 +74,7 @@ const EXCLUDED_TITLE_KEYWORDS = [
 	'Vikipediya:',
 	'Danışan məqalələr',
 	'şablonlar',
-	'səhifələr'
+	'səhifələr',
 ];
 const EXCLUDED_KEYWORD_ALLOW_PATTERNS = [
 	/Komitəsinin üzvləri/i,
@@ -86,9 +86,9 @@ const EXCLUDED_KEYWORD_ALLOW_PATTERNS = [
 	/müxbir üzvləri/i,
 	/həqiqi üzvləri/i,
 	/fəxri üzvləri/i,
-	/nəticəsində ölənlər/i
+	/nəticəsində ölənlər/i,
 ];
-const LARGE_WIKI_SITES = new Set( [
+const LARGE_WIKI_SITES = new Set([
 	'enwiki',
 	'ruwiki',
 	'eswiki',
@@ -103,32 +103,31 @@ const LARGE_WIKI_SITES = new Set( [
 	'plwiki',
 	'arzwiki',
 	'jawiki',
-	'zhwiki'
-] );
+	'zhwiki',
+]);
 
-const log = DEBUG ? ( ...args ) => console.log( '[CatSuggest]', ...args ) : () => {}; // eslint-disable-line no-console
+const log = DEBUG ? (...args) => console.log('[CatSuggest]', ...args) : () => {}; // eslint-disable-line no-console
 
-function escapeRegex( str ) {
-	return str.replace( /[.*+?^${}()|[\]\\]/g, '\\$&' );
+function escapeRegex(str) {
+	return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function debounce( fn, delay ) {
+function debounce(fn, delay) {
 	let timer = null;
 	return function () {
 		const context = this;
 		const args = arguments;
-		if ( timer ) {
-			clearTimeout( timer );
+		if (timer) {
+			clearTimeout(timer);
 		}
-		timer = setTimeout( () => {
-			fn.apply( context, args );
-		}, delay );
+		timer = setTimeout(() => {
+			fn.apply(context, args);
+		}, delay);
 	};
 }
 
 function generateBatchId() {
-	return Math.random().toString( 16 ).slice( 2, 10 ) +
-		Math.random().toString( 16 ).slice( 2, 10 );
+	return Math.random().toString(16).slice(2, 10) + Math.random().toString(16).slice(2, 10);
 }
 
 module.exports = {
@@ -173,5 +172,5 @@ module.exports = {
 	log,
 	escapeRegex,
 	debounce,
-	generateBatchId
+	generateBatchId,
 };
