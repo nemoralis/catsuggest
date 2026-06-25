@@ -334,8 +334,7 @@
 														></s
 													>
 													<template #description
-														>Daha uyğun kateqoriya əlavə edildiyi üçün
-														silinəcək</template
+														>Üst kateqoriya — silinəcək</template
 													>
 												</cdx-checkbox>
 											</div>
@@ -343,6 +342,34 @@
 									</div>
 								</cdx-accordion>
 							</template>
+							<div v-if="existingRemovals.length > 0" style="margin-top: 8px">
+								<cdx-accordion :open="true" separation="minimal">
+									<template #title
+										>Mövcud kateqoriyalara əsaslanan silinmələr ({{
+											existingRemovals.length
+										}})</template
+									>
+									<div
+										v-for="rem in existingRemovals"
+										:key="rem.title"
+										style="margin-bottom: 2px"
+									>
+										<cdx-checkbox v-model="rem.selected" status="error">
+											<s
+												><a
+													:href="getPageUrl(rem.title)"
+													target="_blank"
+													class="catsuggest-suggestion__link"
+													>{{ rem.title }}</a
+												></s
+											>
+											<template #description
+												>Səbəb: {{ rem.reasons.join(', ') }}</template
+											>
+										</cdx-checkbox>
+									</div>
+								</cdx-accordion>
+							</div>
 						</div>
 						<div ref="resultsSentinel" style="height: 1px"></div>
 					</div>
@@ -409,13 +436,16 @@
 						>Təklifləri al</cdx-button
 					>
 					<cdx-button
-						v-if="status === 'results' && suggestions.length > 0"
+						v-if="
+							status === 'results' &&
+							(suggestions.length > 0 || existingRemovals.length > 0)
+						"
 						size="medium"
-						action="progressive"
+						:action="selectedCount > 0 ? 'progressive' : 'destructive'"
 						weight="primary"
-						:disabled="selectedCount === 0 || !hasScrolledResults"
+						:disabled="(selectedCount === 0 && !hasRemovals) || !hasScrolledResults"
 						@click="handleApplyClick"
-						>Təsdiq et</cdx-button
+						>{{ selectedCount > 0 ? 'Təsdiq et' : 'Sil' }}</cdx-button
 					>
 				</div>
 			</div>
@@ -493,6 +523,7 @@ const {
 	fetchMembersSuggestions,
 	resolveQidsToAzwiki,
 	buildParentCatsSuggestions,
+	buildExistingRemovals,
 	buildMembersSuggestions,
 } = require('./suggestions.js');
 const { addParentCategoriesEdit, addCategoryToMembersEdit } = require('./edit.js');
@@ -540,6 +571,7 @@ export default {
 			alreadyProcessed: isCatPage && isPageProcessed(currentPageId),
 			langTab: 'large',
 			fetchAbortController: null,
+			existingRemovals: [],
 		};
 	},
 	computed: {
@@ -626,6 +658,9 @@ export default {
 				});
 			});
 			return seen.size;
+		},
+		hasRemovals() {
+			return this.existingRemovals.some((r) => r.selected);
 		},
 		suggestedSubcats() {
 			return this.suggestions.filter((s) => s.isCategory);
@@ -921,6 +956,7 @@ export default {
 			this.loading = true;
 			this.status = 'loading';
 			this.suggestions = [];
+			this.existingRemovals = [];
 			this.error = null;
 			this.editFailures = [];
 
@@ -1029,6 +1065,10 @@ export default {
 					);
 				}
 
+				if (this.mode === 'parentCats') {
+					this.existingRemovals = await buildExistingRemovals(localData, this.api);
+				}
+
 				this.suggestions.sort((a, b) =>
 					a.title
 						.replace(/^(Kateqoriya|Category):/i, '')
@@ -1080,6 +1120,11 @@ export default {
 						removalSet.add(r.title);
 					}
 				});
+			});
+			this.existingRemovals.forEach((r) => {
+				if (r.selected) {
+					removalSet.add(r.title);
+				}
 			});
 			const titlesToRemove = Array.from(removalSet);
 			if (titlesToAdd.length === 0 && titlesToRemove.length === 0) {

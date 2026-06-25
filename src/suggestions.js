@@ -330,6 +330,58 @@ async function buildParentCatsSuggestions(rawResults, currentCats, api) {
 	return suggestions;
 }
 
+async function buildExistingRemovals(currentCats, api) {
+	const currentCatsSet = new Set(currentCats);
+	const parentMap = new Map();
+
+	const toFetch = currentCats.filter((t) => !parentMap.has(t));
+	const batchPromises = [];
+	for (let i = 0; i < toFetch.length; i += BATCH_SIZE_API) {
+		const batch = toFetch.slice(i, i + BATCH_SIZE_API);
+		batchPromises.push(
+			fetchFullQuery(api, {
+				action: 'query',
+				titles: batch.join('|'),
+				prop: 'categories',
+				cllimit: 'max',
+			})
+		);
+	}
+	const queryResults = await Promise.all(batchPromises);
+	queryResults.forEach((res) => {
+		const pages = res.pages || {};
+		Object.values(pages).forEach((p) => {
+			const cats = p.categories ? p.categories.map((c) => c.title) : [];
+			parentMap.set(p.title, cats);
+		});
+	});
+	toFetch.forEach((t) => {
+		if (!parentMap.has(t)) parentMap.set(t, []);
+	});
+
+	const removalMap = new Map();
+	currentCats.forEach((cat) => {
+		const parents = parentMap.get(cat) || [];
+		parents.forEach((p) => {
+			if (currentCatsSet.has(p)) {
+				const existing = removalMap.get(p);
+				if (existing) {
+					if (!existing.reasons.includes(cat)) existing.reasons.push(cat);
+				} else {
+					removalMap.set(p, { title: p, selected: true, reasons: [cat] });
+				}
+			}
+		});
+	});
+
+	log(
+		'Existing removals:',
+		Array.from(removalMap.values()).map((r) => `${r.title} ← ${r.reasons.join(', ')}`)
+	);
+
+	return Array.from(removalMap.values());
+}
+
 async function buildMembersSuggestions(rawResults, localData, api) {
 	const { members: currentMembersSet, subcats: currentSubcatsSet } = localData;
 	const suggestionTitles = rawResults.map((r) => r.title);
@@ -397,5 +449,6 @@ module.exports = {
 	fetchMembersSuggestions,
 	resolveQidsToAzwiki,
 	buildParentCatsSuggestions,
+	buildExistingRemovals,
 	buildMembersSuggestions,
 };
