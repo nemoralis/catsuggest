@@ -316,7 +316,7 @@ async function buildParentCatsSuggestions(rawResults, currentCats, api) {
 		const parents = parentMap.get(s.title) || [];
 		parents.forEach((p) => {
 			if (currentCatsSet.has(p)) {
-				s.removals.push({ title: p, selected: true });
+				s.removals.push({ title: p, selected: false });
 			}
 		});
 	});
@@ -368,7 +368,7 @@ async function buildExistingRemovals(currentCats, api) {
 				if (existing) {
 					if (!existing.reasons.includes(cat)) existing.reasons.push(cat);
 				} else {
-					removalMap.set(p, { title: p, selected: true, reasons: [cat] });
+					removalMap.set(p, { title: p, selected: false, reasons: [cat] });
 				}
 			}
 		});

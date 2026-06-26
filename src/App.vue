@@ -362,7 +362,16 @@
 												></s
 											>
 											<template #description
-												>Səbəb: {{ rem.reasons.join(', ') }}</template
+												><ul
+													style="
+														margin: 2px 0 0;
+														padding-inline-start: 16px;
+													"
+												>
+													<li v-for="r in rem.reasons" :key="r">
+														{{ r }}
+													</li>
+												</ul></template
 											>
 										</cdx-checkbox>
 									</div>
