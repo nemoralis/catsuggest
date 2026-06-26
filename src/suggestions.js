@@ -444,6 +444,32 @@ async function buildMembersSuggestions(rawResults, localData, api) {
 	return suggestions;
 }
 
+async function detectUncategorizedTemplates(titles, api) {
+	const result = new Set();
+	for (let i = 0; i < titles.length; i += BATCH_SIZE_API) {
+		const batch = titles.slice(i, i + BATCH_SIZE_API);
+		const resp = await retryApiCall(() =>
+			api.get({
+				action: 'query',
+				prop: 'templates',
+				titles: batch.join('|'),
+				formatversion: '2',
+				tlnamespace: '10',
+				tltemplates: 'Şablon:Kateqoriyasız',
+			})
+		);
+		const pages = resp.query && resp.query.pages;
+		if (pages) {
+			pages.forEach((p) => {
+				if (p.templates && p.templates.length > 0) {
+					result.add(p.title.replace(/_/g, ' '));
+				}
+			});
+		}
+	}
+	return result;
+}
+
 module.exports = {
 	fetchParentCatsSuggestions,
 	fetchMembersSuggestions,
@@ -451,4 +477,5 @@ module.exports = {
 	buildParentCatsSuggestions,
 	buildExistingRemovals,
 	buildMembersSuggestions,
+	detectUncategorizedTemplates,
 };

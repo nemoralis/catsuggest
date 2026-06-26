@@ -1,5 +1,11 @@
+const UNCATEGORIZED_RE = /\{\{\s*(?:Şablon\s*:\s*)?Kateqoriyasız\s*(?:\|[\s\S]*?)?\}\}\n?/gi;
+
 const { MAXLAG_SECONDS } = require('./constants.js');
 const { retryApiCall } = require('./api.js');
+
+function stripUncategorized(content) {
+	return content.replace(UNCATEGORIZED_RE, '');
+}
 
 async function editPage(api, title, params) {
 	return api
@@ -50,8 +56,14 @@ async function fetchPageContent(api, title) {
 	}
 	return content;
 }
-
-async function addParentCategoriesEdit(api, pageTitle, titlesToAdd, titlesToRemove, escapeRegex) {
+async function addParentCategoriesEdit(
+	api,
+	pageTitle,
+	titlesToAdd,
+	titlesToRemove,
+	escapeRegex,
+	removeUncategorized
+) {
 	const summaryParts = [];
 	if (titlesToAdd.length > 0) {
 		summaryParts.push('+' + titlesToAdd.length + ' kateqoriya');
@@ -66,7 +78,9 @@ async function addParentCategoriesEdit(api, pageTitle, titlesToAdd, titlesToRemo
 		minor: titlesToAdd.length < 2,
 	};
 
-	if (titlesToRemove.length > 0) {
+	const needsContentFetch = titlesToRemove.length > 0 || removeUncategorized;
+
+	if (needsContentFetch) {
 		let content = await fetchPageContent(api, pageTitle);
 
 		titlesToRemove.forEach((t) => {
@@ -80,6 +94,9 @@ async function addParentCategoriesEdit(api, pageTitle, titlesToAdd, titlesToRemo
 			content = content.replace(regex, '');
 		});
 
+		if (removeUncategorized) {
+			content = stripUncategorized(content);
+		}
 		if (titlesToAdd.length > 0) {
 			content += '\n' + titlesToAdd.map((t) => `[[${t.replace(/_/g, ' ')}]]`).join('\n');
 		}
@@ -92,13 +109,31 @@ async function addParentCategoriesEdit(api, pageTitle, titlesToAdd, titlesToRemo
 	await editPage(api, pageTitle, params);
 }
 
-async function addCategoryToMembersEdit(api, itemTitle, categoryTag, editGroupSuffix, pageName) {
-	await editPage(api, itemTitle, {
-		appendtext: categoryTag,
-		minor: true,
-		summary: `[[VP:Q/KT|Kateqoriya təklifçisi]] vasitəsilə +[[${pageName.replace(/_/g, ' ')}]]${editGroupSuffix}`,
-		redirect: true,
-	});
+async function addCategoryToMembersEdit(
+	api,
+	itemTitle,
+	categoryTag,
+	editGroupSuffix,
+	pageName,
+	hasUncategorized
+) {
+	if (hasUncategorized) {
+		let content = await fetchPageContent(api, itemTitle);
+		content = stripUncategorized(content);
+		content += categoryTag;
+		await editPage(api, itemTitle, {
+			text: content,
+			minor: true,
+			summary: `[[VP:Q/KT|Kateqoriya təklifçisi]] vasitəsilə +[[${pageName.replace(/_/g, ' ')}]], −Şablon:Kateqoriyasız${editGroupSuffix}`,
+		});
+	} else {
+		await editPage(api, itemTitle, {
+			appendtext: categoryTag,
+			minor: true,
+			summary: `[[VP:Q/KT|Kateqoriya təklifçisi]] vasitəsilə +[[${pageName.replace(/_/g, ' ')}]]${editGroupSuffix}`,
+			redirect: true,
+		});
+	}
 }
 
 module.exports = {

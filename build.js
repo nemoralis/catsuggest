@@ -124,8 +124,10 @@ async function build() {
  * Mənbə kodu: https://gitlab.wikimedia.org/nmw03/catsuggest
  * 
  * Bu fayl birbaşa redaktə üçün nəzərdə tutulmayıb, dəyişikliklərinizi Gitlaba göndərin.
- */`
-		}
+ */
+(function(){`
+		},
+		footer: { js: '})();' },
 	} );
 	const size = ( fs.statSync( 'dist/catsuggest.js' ).size / 1024 ).toFixed( 1 );
 	console.log( `Build complete: dist/catsuggest.js (${ size }KB)` );

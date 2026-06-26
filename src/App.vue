@@ -10,8 +10,6 @@
 		</cdx-button>
 	</teleport>
 
-	/** TODO: Add support for removing {{ Kateqoriyasız }} from articles Add parent check to members
-	mode */
 	<cdx-dialog
 		v-model:open="dialogShown"
 		:title="mode === 'members' ? 'Məqalə və altkateqoriya təklifləri' : 'Kateqoriya təklifləri'"
@@ -525,6 +523,7 @@ const {
 	buildParentCatsSuggestions,
 	buildExistingRemovals,
 	buildMembersSuggestions,
+	detectUncategorizedTemplates,
 } = require('./suggestions.js');
 const { addParentCategoriesEdit, addCategoryToMembersEdit } = require('./edit.js');
 
@@ -572,6 +571,7 @@ export default {
 			langTab: 'large',
 			fetchAbortController: null,
 			existingRemovals: [],
+			UncategorizedPages: new Set(),
 		};
 	},
 	computed: {
@@ -957,6 +957,7 @@ export default {
 			this.status = 'loading';
 			this.suggestions = [];
 			this.existingRemovals = [];
+			this.UncategorizedPages = new Set();
 			this.error = null;
 			this.editFailures = [];
 
@@ -1069,6 +1070,13 @@ export default {
 					this.existingRemovals = await buildExistingRemovals(localData, this.api);
 				}
 
+				this.UncategorizedPages = await detectUncategorizedTemplates(
+					this.mode === 'parentCats'
+						? [mw.config.get('wgPageName')]
+						: this.suggestions.map((s) => s.title),
+					this.api
+				);
+
 				this.suggestions.sort((a, b) =>
 					a.title
 						.replace(/^(Kateqoriya|Category):/i, '')
@@ -1127,11 +1135,14 @@ export default {
 				}
 			});
 			const titlesToRemove = Array.from(removalSet);
-			if (titlesToAdd.length === 0 && titlesToRemove.length === 0) {
+			const pageTitle = mw.config.get('wgPageName');
+			const hasUncategorized = this.UncategorizedPages.has(
+				pageTitle.replace(/_/g, ' ')
+			);
+			if (titlesToAdd.length === 0 && titlesToRemove.length === 0 && !hasUncategorized) {
 				return;
 			}
 
-			const pageTitle = mw.config.get('wgPageName');
 			this.status = 'editing';
 			this.loading = true;
 			this.editFailures = [];
@@ -1145,7 +1156,8 @@ export default {
 					pageTitle,
 					titlesToAdd,
 					titlesToRemove,
-					escapeRegex
+					escapeRegex,
+					hasUncategorized
 				);
 
 				if (!this.dialogShown) {
@@ -1195,7 +1207,8 @@ export default {
 							item.title,
 							categoryTag,
 							editGroupSuffix,
-							pageName
+							pageName,
+							this.UncategorizedPages.has(item.title)
 						);
 						this.processedCount++;
 						if (!this.dialogShown) {
