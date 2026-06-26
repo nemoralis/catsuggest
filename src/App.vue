@@ -10,8 +10,6 @@
 		</cdx-button>
 	</teleport>
 
-	/** TODO: Add support for removing {{ Kateqoriyasız }} from articles Add parent check to members
-	mode */
 	<cdx-dialog
 		v-model:open="dialogShown"
 		:title="mode === 'members' ? 'Məqalə və altkateqoriya təklifləri' : 'Kateqoriya təklifləri'"
