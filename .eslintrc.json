@@ -3,5 +3,25 @@
 		"wikimedia/client",
 		"wikimedia/mediawiki",
 		"prettier"
+	],
+	"overrides": [
+		{
+			"files": ["*.vue"],
+			"parser": "vue-eslint-parser",
+			"parserOptions": {
+				"sourceType": "module"
+			},
+			"rules": {
+				"vue/no-undef-components": "off",
+				"vue/no-static-inline-styles": "off",
+				"vue/no-unused-properties": "off",
+				"vue/no-undef-properties": "off",
+				"vue/require-default-prop": "off",
+				"vue/attributes-order": "off",
+				"vue/attribute-hyphenation": "off",
+				"no-underscore-dangle": "off",
+				"compat/compat": "off"
+			}
+		}
 	]
 }

@@ -9,10 +9,10 @@
     "serve": "node bin/server.js",
     "serve:watch": "nodemon --watch dist --watch catsuggest.css --ext js,css bin/server.js",
     "deploy": "node bin/deploy.js",
-	"lint": "eslint \"src/*.js\"",
-		"format": "prettier --write \"src/**/*.{js,vue,css}\" \"bin/*.js\" \"catsuggest.css\"",
-		"format:check": "prettier --check \"src/**/*.{js,vue,css}\" \"bin/*.js\" \"catsuggest.css\"",
-		"test": "npm run lint && npm run format:check"
+    "lint": "eslint \"src/*.{js,vue,css}\"",
+    "format": "prettier --write \"src/**/*.{js,vue,css,json}\" \"bin/*.js\" \"catsuggest.css\"",
+    "format:check": "prettier --check \"src/**/*.{js,vue,css}\" \"bin/*.js\" \"catsuggest.css\"",
+    "test": "npm run lint && npm run format:check"
   },
   "keywords": [],
   "author": "",

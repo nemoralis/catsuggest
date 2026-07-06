@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 const esbuild = require( 'esbuild' );
 const fs = require( 'fs' );
 const path = require( 'path' );
@@ -6,10 +7,9 @@ const { parse, compileTemplate } = require( '@vue/compiler-sfc' );
 function externalizeJsonPlugin() {
 	return {
 		name: 'external-json',
+		// eslint-disable-next-line no-shadow
 		setup( build ) {
-			build.onResolve( { filter: /catsuggest-check\.json$/ }, ( args ) => {
-				return { path: args.path, external: true };
-			} );
+			build.onResolve( { filter: /catsuggest-check\.json$/ }, ( args ) => ({ path: args.path, external: true }) );
 		}
 	};
 }
@@ -17,20 +17,17 @@ function externalizeJsonPlugin() {
 function vueSfcPlugin() {
 	return {
 		name: 'vue-sfc',
+		// eslint-disable-next-line no-shadow
 		setup( build ) {
-			build.onResolve( { filter: /\.vue$/ }, ( args ) => {
-				return {
+			build.onResolve( { filter: /\.vue$/ }, ( args ) => ({
 					path: path.resolve( args.resolveDir, args.path ),
 					namespace: 'vue-sfc'
-				};
-			} );
+				}) );
 
-			build.onResolve( { filter: /\.js$/, namespace: 'vue-sfc' }, ( args ) => {
-				return {
+			build.onResolve( { filter: /\.js$/, namespace: 'vue-sfc' }, ( args ) => ({
 					path: path.resolve( args.resolveDir, args.path ),
 					namespace: 'file'
-				};
-			} );
+				}) );
 
 			build.onLoad( { filter: /.*/, namespace: 'vue-sfc' }, ( args ) => {
 				const source = fs.readFileSync( args.path, 'utf8' );
@@ -56,15 +53,13 @@ function vueSfcPlugin() {
 
 				templateCode = templateCode.replace(
 					/import\s*\{([^}]*)\}\s*from\s*["']vue["']\s*/g,
-					( _match, names ) => {
-						return names.split( ',' ).map( ( part ) => {
+					( _match, names ) => names.split( ',' ).map( ( part ) => {
 							part = part.trim();
 							const parts = part.split( /\s+as\s+/ );
 							const orig = parts[ 0 ].trim();
 							const alias = parts.length > 1 ? parts[ 1 ].trim() : parts[ 0 ].trim();
 							return 'var ' + alias + ' = Vue.' + orig + ';\n';
-						} ).join( '' );
-					}
+						} ).join( '' )
 				);
 
 				templateCode = templateCode.replace( /export\s+function\s+render\s*/g, 'function render ' );
@@ -133,5 +128,6 @@ async function build() {
 
 build().catch( ( err ) => {
 	console.error( 'Build failed:', err );
+	// eslint-disable-next-line no-undef
 	process.exit( 1 );
 } );
