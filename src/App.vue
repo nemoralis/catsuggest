@@ -212,7 +212,7 @@
 							>
 								<strong>Təkliflərin alındığı səhifələr: </strong>
 								<ul class="catsuggest-sources-list">
-									<li v-for="site in selectedSites" :key="site">
+									<li v-for="site in appliedSites" :key="site">
 										<a
 											:href="getForeignPageUrl(site, getSiteTitle(site))"
 											target="_blank"
@@ -579,6 +579,7 @@ export default {
 			langTab: 'large',
 			fetchAbortController: null,
 			existingRemovals: [],
+			appliedSites: [],
 		};
 	},
 	computed: {
@@ -966,6 +967,7 @@ export default {
 			this.existingRemovals = [];
 			this.error = null;
 			this.editFailures = [];
+			this.appliedSites = [];
 
 			const globalQidSet = new Set();
 			const qidToSites = new Map();
@@ -1087,6 +1089,7 @@ export default {
 				}
 
 				this.pruneInactiveSites();
+				this.appliedSites = this.selectedSites.slice();
 
 				this.status = 'results';
 			} catch (_err) {
@@ -1327,6 +1330,7 @@ export default {
 			this.error = null;
 			this.editFailures = [];
 			this.hasScrolledResults = false;
+			this.appliedSites = [];
 		},
 		status(newVal) {
 			if (newVal === 'results') {
