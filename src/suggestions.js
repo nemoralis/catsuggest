@@ -251,7 +251,7 @@ async function buildParentCatsSuggestions(rawResults, currentCats, api) {
 
 	await fetchParentsForTitles(suggestionTitles);
 
-	let currentLevel = currentCats.slice();
+	let currentLevel = currentCats.concat(suggestionTitles);
 	const allAncestors = new Set();
 
 	for (let depth = 0; depth < ANCESTOR_CHECK_DEPTH; depth++) {
