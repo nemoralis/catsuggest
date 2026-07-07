@@ -679,9 +679,10 @@ export default {
 				return 0;
 			}
 			const batches = Math.ceil(count / FETCH_CONCURRENCY);
-			const sleepTime = (batches - 1) * 0.5;
-			const networkTime = batches * 0.3 + 0.8;
-			return Math.ceil(sleepTime + networkTime);
+			const sleepTime = (batches - 1) * (SLEEP_BETWEEN_BATCHES_MS / 1000);
+			const networkTime = batches * 0.6;
+			const baseOverhead = 2.0;
+			return Math.ceil(sleepTime + networkTime + baseOverhead);
 		},
 		sitelinksBySite() {
 			const map = new Map();
