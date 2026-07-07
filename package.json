@@ -8,11 +8,12 @@
     "dev": "concurrently -n build,serve \"npm run build:watch\" \"npm run serve:watch\"",
     "serve": "node bin/server.js",
     "serve:watch": "nodemon --watch dist --watch catsuggest.css --ext js,css bin/server.js",
-    "deploy": "node bin/deploy.js",
+    "deploy": "npm run build && node bin/deploy.js",
     "lint": "eslint \"src/*.{js,vue,css}\"",
     "format": "prettier --write \"src/**/*.{js,vue,css,json}\" \"bin/*.js\" \"catsuggest.css\"",
     "format:check": "prettier --check \"src/**/*.{js,vue,css}\" \"bin/*.js\" \"catsuggest.css\"",
-    "test": "npm run lint && npm run format:check"
+    "test:unit": "vitest run",
+    "test": "npm run lint && npm run format:check && npm run test:unit"
   },
   "keywords": [],
   "author": "",
@@ -27,6 +28,7 @@
     "mwn": "^3.0.2",
     "nodemon": "^3.1.14",
     "prettier": "^3.8.4",
-    "vite": "^8.0.16"
+    "vite": "^8.0.16",
+    "vitest": "^3.0.2"
   }
 }

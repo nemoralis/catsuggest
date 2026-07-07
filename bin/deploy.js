@@ -9,12 +9,11 @@ const { execSync } = require('child_process');
 const constants = require('../src/constants.js');
 
 if (constants.DEV_MODE) {
-	console.error('\x1b[31mError: Cannot deploy while DEV_MODE is enabled in src/constants.js!\x1b[0m');
+	console.error(
+		'\x1b[31mError: Cannot deploy while DEV_MODE is enabled in src/constants.js!\x1b[0m'
+	);
 	process.exit(1);
 }
-
-console.log('Rebuilding production files...');
-execSync('node build.js', { cwd: path.resolve(__dirname, '..'), stdio: 'inherit' });
 
 // JSON file with your username and bot password. Set up a bot password at [[Special:BotPasswords]]
 const credentials = require('../credentials.json');
