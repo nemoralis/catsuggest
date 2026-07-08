@@ -75,6 +75,19 @@ const EXCLUDED_KEYWORD_ALLOW_PATTERNS = [
 	/fəxri üzvləri/i,
 	/nəticəsində ölənlər/i,
 ];
+const EXCLUDED_TITLES = new Set([
+	'Kateqoriya:Kişi',
+	'Kateqoriya:Kişilər',
+	'Kateqoriya:Qadın',
+	'Kateqoriya:Qadınlar',
+	'Kateqoriya:İnsanlar',
+	'Kateqoriya:SSRİ',
+	'Kateqoriya:Tarix',
+	'Kateqoriya:Diplomatiya',
+	'Kateqoriya:Qaralama halında olan məqalələr',
+	'Kateqoriya:İstinad xətası olan səhifələr',
+	'Kateqoriya:Abunəlik tələb edən məzmuna keçidi olan səhifələr',
+]);
 const LARGE_WIKI_SITES = new Set([
 	'enwiki',
 	'ruwiki',
@@ -154,6 +167,7 @@ module.exports = {
 	EXCLUDED_SITES,
 	EXCLUDED_TITLE_KEYWORDS,
 	EXCLUDED_KEYWORD_ALLOW_PATTERNS,
+	EXCLUDED_TITLES,
 	LARGE_WIKI_SITES,
 	log,
 	escapeRegex,

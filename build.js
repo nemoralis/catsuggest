@@ -113,14 +113,15 @@ async function build() {
 		plugins: [ externalizeJsonPlugin(), vueSfcPlugin() ],
 		minify: true,
 		banner: {
-			js: `/*!
+			js: `(function(){/*!
  * CatSuggest — Kateqoriya təklifçisi
  * Ətraflı: https://w.wiki/Qf9x
  * Mənbə kodu: https://gitlab.wikimedia.org/nmw03/catsuggest
  * 
  * Bu fayl birbaşa redaktə üçün nəzərdə tutulmayıb, dəyişikliklərinizi Gitlaba göndərin.
- */`
-		}
+ */`,
+		},
+		footer: { js: '})();' },
 	} );
 	const size = ( fs.statSync( 'dist/catsuggest.js' ).size / 1024 ).toFixed( 1 );
 	console.log( `Build complete: dist/catsuggest.js (${ size }KB)` );

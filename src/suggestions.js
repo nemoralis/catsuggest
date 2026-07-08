@@ -7,6 +7,7 @@ const {
 	CACHE_TTL_FOREIGN,
 	EXCLUDED_TITLE_KEYWORDS,
 	EXCLUDED_KEYWORD_ALLOW_PATTERNS,
+	EXCLUDED_TITLES,
 	ALLOWED_NAMESPACES,
 	ANCESTOR_CHECK_DEPTH,
 	log,
@@ -223,6 +224,9 @@ async function buildParentCatsSuggestions(rawResults, currentCats, api, currentP
 	const seenTitles = new Set();
 	const suggestions = rawResults
 		.filter((r) => {
+			if (EXCLUDED_TITLES.has(r.title)) {
+				return false;
+			}
 			if (
 				EXCLUDED_TITLE_KEYWORDS.some((kw) => r.title.includes(kw)) &&
 				!EXCLUDED_KEYWORD_ALLOW_PATTERNS.some((pattern) => pattern.test(r.title))
@@ -416,6 +420,9 @@ async function buildMembersSuggestions(rawResults, localData, api) {
 	const seenTitles = new Set();
 	const suggestions = rawResults
 		.filter((item) => {
+			if (EXCLUDED_TITLES.has(item.title)) {
+				return false;
+			}
 			const ns = new mw.Title(item.title).getNamespaceId();
 			if (!ALLOWED_NAMESPACES.includes(ns)) {
 				return false;
