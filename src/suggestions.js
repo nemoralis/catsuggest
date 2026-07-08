@@ -201,7 +201,7 @@ async function resolveQidsToAzwiki(globalQidSet, qidToSites, signal, wikidataApi
 	return results;
 }
 
-async function buildParentCatsSuggestions(rawResults, currentCats, api) {
+async function buildParentCatsSuggestions(rawResults, currentCats, api, currentPageTitle) {
 	const currentCatsSet = new Set(currentCats);
 	const suggestionTitles = rawResults.map((r) => r.title);
 
@@ -276,6 +276,36 @@ async function buildParentCatsSuggestions(rawResults, currentCats, api) {
 	}
 
 	log('Ancestors of current cats:', Array.from(allAncestors));
+
+	// Returns true if `currentPageTitle` is an ancestor of `title` — meaning
+	// the suggestion is a subcategory (descendant) of the current page.
+	// Adding a child as a parent would create a cycle.
+	const isDescendantOfCurrentPage = (title) => {
+		if (!currentPageTitle) {
+			return false;
+		}
+		const normalizedCurrent = currentPageTitle.replace(/_/g, ' ');
+		const visited = new Set();
+		const queue = [title];
+		while (queue.length > 0) {
+			const node = queue.shift();
+			if (visited.has(node)) {
+				continue;
+			}
+			visited.add(node);
+			const parents = parentMap.get(node) || [];
+			for (const p of parents) {
+				if (p === normalizedCurrent || p.replace(/_/g, ' ') === normalizedCurrent) {
+					return true;
+				}
+				if (!visited.has(p)) {
+					queue.push(p);
+				}
+			}
+		}
+		return false;
+	};
+
 	const seenTitles = new Set();
 	const suggestions = rawResults
 		.filter((r) => {
@@ -287,7 +317,8 @@ async function buildParentCatsSuggestions(rawResults, currentCats, api) {
 			}
 			const alreadyOnPage = currentCatsSet.has(r.title);
 			const isAncestor = allAncestors.has(r.title);
-			if (!alreadyOnPage && !isAncestor && !seenTitles.has(r.title)) {
+			const isDescendant = isDescendantOfCurrentPage(r.title);
+			if (!alreadyOnPage && !isAncestor && !isDescendant && !seenTitles.has(r.title)) {
 				seenTitles.add(r.title);
 				return true;
 			}
@@ -297,7 +328,9 @@ async function buildParentCatsSuggestions(rawResults, currentCats, api) {
 				'| alreadyOnPage:',
 				alreadyOnPage,
 				'| isAncestor:',
-				isAncestor
+				isAncestor,
+				'| isDescendant:',
+				isDescendant
 			);
 			return false;
 		})

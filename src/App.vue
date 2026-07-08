@@ -1065,7 +1065,8 @@ export default {
 					this.suggestions = await buildParentCatsSuggestions(
 						resolvedResults,
 						localData,
-						this.api
+						this.api,
+						mw.config.get('wgPageName').replace(/_/g, ' ')
 					);
 				} else {
 					this.suggestions = await buildMembersSuggestions(
