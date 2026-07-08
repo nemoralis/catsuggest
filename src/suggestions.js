@@ -173,7 +173,7 @@ async function buildParentCatsSuggestions(
 
 	await fetchParentsForTitles(suggestionTitles);
 
-	let currentLevel = currentCats.concat(suggestionTitles);
+	let currentLevel = currentCats.slice();
 	const allAncestors = new Set();
 
 	for (let depth = 0; depth < ANCESTOR_CHECK_DEPTH; depth++) {
@@ -229,7 +229,7 @@ async function buildParentCatsSuggestions(
 	};
 
 	const seenTitles = new Set();
-	const suggestions = rawResults
+	let suggestions = rawResults
 		.filter((r) => {
 			if (EXCLUDED_TITLES.has(r.title)) {
 				return false;
@@ -265,6 +265,22 @@ async function buildParentCatsSuggestions(
 			sources: r.sources,
 			removals: [],
 		}));
+
+	// Filter out suggestions that are a (direct) parent of another suggestion
+	const suggestionSet = new Set(suggestions.map((s) => s.title));
+	const parentOfAnother = new Set();
+	suggestions.forEach((s) => {
+		const parents = parentMap.get(s.title) || [];
+		parents.forEach((p) => {
+			if (suggestionSet.has(p)) {
+				parentOfAnother.add(p);
+			}
+		});
+	});
+	const filtered = suggestions.filter((s) => !parentOfAnother.has(s.title));
+	log('Removed due to parent in suggestions:', Array.from(parentOfAnother));
+	suggestions = filtered;
+
 	log(
 		'Final suggestions:',
 		suggestions.map((s) => s.title)
@@ -285,12 +301,17 @@ async function buildParentCatsSuggestions(
 			.map((s) => `${s.title} → ${s.removals.map((r) => r.title).join(', ')}`)
 	);
 
-	return suggestions;
+	return { suggestions, parentMap };
 }
 
-async function buildExistingRemovals(currentCats, api, templateAddedCats = new Set()) {
+async function buildExistingRemovals(
+	currentCats,
+	api,
+	templateAddedCats = new Set(),
+	sharedParentMap = null
+) {
 	const currentCatsSet = new Set(currentCats);
-	const parentMap = new Map();
+	const parentMap = sharedParentMap || new Map();
 
 	const toFetch = currentCats.filter((t) => !parentMap.has(t));
 	const batchPromises = [];

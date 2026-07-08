@@ -12,7 +12,7 @@ const DEPTH2_BATCH_SIZE = 15;
 const MAX_DEPTH2_SUBCATS = 100;
 const MAX_DEPTH1_SUBCATS = 200;
 const CONFIRM_BATCH_THRESHOLD = 5;
-const ANCESTOR_CHECK_DEPTH = 6;
+const ANCESTOR_CHECK_DEPTH = 4;
 const DEBUG = true;
 const DEV_MODE = true;
 const CACHE_TTL_LANGUAGES = 31536000;
@@ -84,6 +84,7 @@ const EXCLUDED_TITLES = new Set([
 	'Kateqoriya:SSRİ',
 	'Kateqoriya:Tarix',
 	'Kateqoriya:Diplomatiya',
+	'Kateqoriya:Dilçilər',
 	'Kateqoriya:Qaralama halında olan məqalələr',
 	'Kateqoriya:İstinad xətası olan səhifələr',
 	'Kateqoriya:Abunəlik tələb edən məzmuna keçidi olan səhifələr',
@@ -101,7 +102,6 @@ const LARGE_WIKI_SITES = new Set([
 	'svwiki',
 	'nlwiki',
 	'plwiki',
-	'arzwiki',
 	'jawiki',
 	'zhwiki',
 ]);

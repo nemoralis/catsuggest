@@ -79,13 +79,55 @@ describe('buildParentCatsSuggestions', () => {
 			{ title: 'Kateqoriya:Ateistlər', sources: ['fr'] },
 		];
 		const currentCats = ['Kateqoriya:Ateistlər'];
-		const suggestions = await buildParentCatsSuggestions(rawResults, currentCats, {
+		const { suggestions } = await buildParentCatsSuggestions(rawResults, currentCats, {
 			get: mockGet,
 		});
 		const titles = suggestions.map((s) => s.title);
 		expect(titles).toContain('Kateqoriya:Şotlandiya filosofları');
 		expect(titles).not.toContain('Kateqoriya:Britaniya filosofları');
 		expect(titles).not.toContain('Kateqoriya:Ateistlər');
+	});
+
+	it('should filter out suggestion that is a parent of another suggestion', async () => {
+		const mockGet = vi.fn(async (params) => {
+			const titles = params.titles || '';
+			if (titles.includes('Kateqoriya:Şotlandiya filosofları')) {
+				return {
+					query: {
+						pages: {
+							1: {
+								title: 'Kateqoriya:Şotlandiya filosofları',
+								categories: [{ title: 'Kateqoriya:Britaniya filosofları' }],
+							},
+						},
+					},
+				};
+			}
+			if (titles.includes('Kateqoriya:Britaniya filosofları')) {
+				return {
+					query: {
+						pages: {
+							2: {
+								title: 'Kateqoriya:Britaniya filosofları',
+								categories: [],
+							},
+						},
+					},
+				};
+			}
+			return { query: { pages: {} } };
+		});
+
+		const rawResults = [
+			{ title: 'Kateqoriya:Şotlandiya filosofları', sources: ['en'] },
+			{ title: 'Kateqoriya:Britaniya filosofları', sources: ['en'] },
+		];
+		const currentCats = ['Kateqoriya:Ateistlər'];
+		const { suggestions } = await buildParentCatsSuggestions(rawResults, currentCats, {
+			get: mockGet,
+		});
+		expect(suggestions).toHaveLength(1);
+		expect(suggestions[0].title).toBe('Kateqoriya:Şotlandiya filosofları');
 	});
 
 	it('should attach removals for parents already on the page', async () => {
@@ -122,7 +164,7 @@ describe('buildParentCatsSuggestions', () => {
 			{ title: 'Kateqoriya:Şotlandiya filosofları', sources: ['en'] },
 		];
 		const currentCats = ['Kateqoriya:Britaniya filosofları'];
-		const suggestions = await buildParentCatsSuggestions(rawResults, currentCats, {
+		const { suggestions } = await buildParentCatsSuggestions(rawResults, currentCats, {
 			get: mockGet,
 		});
 		expect(suggestions).toHaveLength(1);
@@ -133,6 +175,30 @@ describe('buildParentCatsSuggestions', () => {
 });
 
 describe('buildExistingRemovals', () => {
+	it('should use shared parentMap and skip API calls', async () => {
+		const mockGet = vi.fn();
+		const parentMap = new Map();
+		parentMap.set('Kateqoriya:Şotlandiya filosofları', [
+			'Kateqoriya:Britaniya filosofları',
+		]);
+		parentMap.set('Kateqoriya:Britaniya filosofları', [
+			'Kateqoriya:Britaniya şəxsləri',
+		]);
+
+		const removals = await buildExistingRemovals(
+			[
+				'Kateqoriya:Şotlandiya filosofları',
+				'Kateqoriya:Britaniya filosofları',
+			],
+			{ get: mockGet },
+			new Set(),
+			parentMap
+		);
+		expect(removals).toHaveLength(1);
+		expect(removals[0].title).toBe('Kateqoriya:Britaniya filosofları');
+		expect(mockGet).not.toHaveBeenCalled();
+	});
+
 	it('should detect parent-child overlap among existing categories', async () => {
 		const mockGet = vi.fn(async () => ({
 			query: {

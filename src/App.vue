@@ -1060,17 +1060,19 @@ export default {
 						localData
 					);
 
-					this.suggestions = await buildParentCatsSuggestions(
+					const { suggestions, parentMap } = await buildParentCatsSuggestions(
 						resolvedResults,
 						localData,
 						this.api,
 						mw.config.get('wgPageName').replace(/_/g, ' '),
 						templateAddedCats
 					);
+					this.suggestions = suggestions;
 					this.existingRemovals = await buildExistingRemovals(
 						localData,
 						this.api,
-						templateAddedCats
+						templateAddedCats,
+						parentMap
 					);
 				} else {
 					this.suggestions = await buildMembersSuggestions(
