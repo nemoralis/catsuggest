@@ -13,6 +13,7 @@ const {
 	log,
 } = require('./constants.js');
 const { fetchFullQuery } = require('./api.js');
+const { fetchPageContent } = require('./edit.js');
 function fetchParentCatsSuggestions(foreignApi, siteData, lang, globalCatToSites, qid) {
 	const cacheKey = CACHE_KEY_FOREIGN_PREFIX + qid + '-' + siteData.site;
 	const cached = mw.storage.get(cacheKey);
@@ -116,7 +117,13 @@ function fetchMembersSuggestions(foreignApi, siteData, lang, globalCatToSites, q
 	});
 }
 
-async function buildParentCatsSuggestions(rawResults, currentCats, api, currentPageTitle) {
+async function buildParentCatsSuggestions(
+	rawResults,
+	currentCats,
+	api,
+	currentPageTitle,
+	templateAddedCats = new Set()
+) {
 	const currentCatsSet = new Set(currentCats);
 	const suggestionTitles = rawResults.map((r) => r.title);
 
@@ -266,7 +273,7 @@ async function buildParentCatsSuggestions(rawResults, currentCats, api, currentP
 	suggestions.forEach((s) => {
 		const parents = parentMap.get(s.title) || [];
 		parents.forEach((p) => {
-			if (currentCatsSet.has(p)) {
+			if (currentCatsSet.has(p) && !templateAddedCats.has(p)) {
 				s.removals.push({ title: p, selected: false });
 			}
 		});
@@ -281,7 +288,7 @@ async function buildParentCatsSuggestions(rawResults, currentCats, api, currentP
 	return suggestions;
 }
 
-async function buildExistingRemovals(currentCats, api) {
+async function buildExistingRemovals(currentCats, api, templateAddedCats = new Set()) {
 	const currentCatsSet = new Set(currentCats);
 	const parentMap = new Map();
 
@@ -349,6 +356,9 @@ async function buildExistingRemovals(currentCats, api) {
 	// The algorithm uses allDescendants to check for surviving descendants.
 	const candidateMap = new Map();
 	currentCats.forEach((cat) => {
+		if (templateAddedCats.has(cat)) {
+			return;
+		}
 		const directChildren = childMap.get(cat) || [];
 		const descendants = allDescendants.get(cat);
 		if (descendants && descendants.size > 0) {
@@ -451,10 +461,40 @@ async function buildMembersSuggestions(rawResults, localData, api) {
 	return suggestions;
 }
 
+async function detectTemplateAddedCategories(api, pageTitle, currentCats) {
+	let content;
+	try {
+		content = await fetchPageContent(api, pageTitle);
+	} catch (e) {
+		return new Set();
+	}
+
+	// Parse direct [[Category:...]] / [[Kateqoriya:...]] from wikitext
+	const directCats = new Set();
+	const catRe = /\[\[\s*(?:Kateqoriya|Category)\s*:\s*([^\]|]+?)\s*(?:\|[^\]]*?)?\]\]/gi;
+	let match;
+	while ((match = catRe.exec(content)) !== null) {
+		directCats.add(CATEGORY_PREFIX + match[1].trim());
+	}
+
+	// Template-added = currentCats (from API/wgCategories) minus directCats (from wikitext)
+	const templateAdded = new Set();
+	for (const c of currentCats) {
+		if (!directCats.has(c)) {
+			templateAdded.add(c);
+		}
+	}
+
+	log('Template-added categories:', Array.from(templateAdded));
+
+	return templateAdded;
+}
+
 module.exports = {
 	fetchParentCatsSuggestions,
 	fetchMembersSuggestions,
 	buildParentCatsSuggestions,
 	buildExistingRemovals,
 	buildMembersSuggestions,
+	detectTemplateAddedCategories,
 };

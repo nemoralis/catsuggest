@@ -530,6 +530,7 @@ const {
 	buildParentCatsSuggestions,
 	buildMembersSuggestions,
 	buildExistingRemovals,
+	detectTemplateAddedCategories,
 } = require('./suggestions.js');
 const { addParentCategoriesEdit, addCategoryToMembersEdit } = require('./edit.js');
 
@@ -1053,11 +1054,23 @@ export default {
 				}
 
 				if (this.mode === 'parentCats') {
+					const templateAddedCats = await detectTemplateAddedCategories(
+						this.api,
+						mw.config.get('wgPageName').replace(/_/g, ' '),
+						localData
+					);
+
 					this.suggestions = await buildParentCatsSuggestions(
 						resolvedResults,
 						localData,
 						this.api,
-						mw.config.get('wgPageName').replace(/_/g, ' ')
+						mw.config.get('wgPageName').replace(/_/g, ' '),
+						templateAddedCats
+					);
+					this.existingRemovals = await buildExistingRemovals(
+						localData,
+						this.api,
+						templateAddedCats
 					);
 				} else {
 					this.suggestions = await buildMembersSuggestions(
@@ -1065,10 +1078,6 @@ export default {
 						localData,
 						this.api
 					);
-				}
-
-				if (this.mode === 'parentCats') {
-					this.existingRemovals = await buildExistingRemovals(localData, this.api);
 				}
 
 				this.suggestions.sort((a, b) =>
