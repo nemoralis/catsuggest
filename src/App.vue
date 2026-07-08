@@ -500,7 +500,6 @@ const {
 	DEBOUNCE_MS,
 	CONFIRM_BATCH_THRESHOLD,
 	EXCLUDED_SITES,
-	EXCLUDED_PARENT_QIDS,
 	LARGE_WIKI_SITES,
 	CACHE_KEY_USER_LANGS,
 	CACHE_KEY_TREE_PREFIX,
@@ -528,10 +527,9 @@ const {
 const {
 	fetchParentCatsSuggestions,
 	fetchMembersSuggestions,
-	resolveQidsToAzwiki,
 	buildParentCatsSuggestions,
-	buildExistingRemovals,
 	buildMembersSuggestions,
+	buildExistingRemovals,
 } = require('./suggestions.js');
 const { addParentCategoriesEdit, addCategoryToMembersEdit } = require('./edit.js');
 
@@ -970,8 +968,7 @@ export default {
 			this.editFailures = [];
 			this.appliedSites = [];
 
-			const globalQidSet = new Set();
-			const qidToSites = new Map();
+			const globalCatToSites = new Map();
 
 			try {
 				const sitesToProcess = this.selectedSites.slice();
@@ -1001,8 +998,7 @@ export default {
 							foreignApi,
 							siteData,
 							lang,
-							globalQidSet,
-							qidToSites,
+							globalCatToSites,
 							this.qid
 						);
 					} else {
@@ -1010,8 +1006,7 @@ export default {
 							foreignApi,
 							siteData,
 							lang,
-							globalQidSet,
-							qidToSites,
+							globalCatToSites,
 							this.qid
 						);
 					}
@@ -1034,7 +1029,7 @@ export default {
 
 				const localData = await localStatePromise;
 
-				if (globalQidSet.size === 0) {
+				if (globalCatToSites.size === 0) {
 					this.error =
 						this.mode === 'parentCats'
 							? 'Seçilmiş dillərdə kateqoriya tapılmadı. Daha çox dil seçməyə və ya başqa dilləri sınamağa cəhd edin.'
@@ -1043,15 +1038,11 @@ export default {
 					return;
 				}
 
-				if (this.mode === 'parentCats') {
-					EXCLUDED_PARENT_QIDS.forEach((qid) => globalQidSet.delete(qid));
-				}
-
-				const resolvedResults = await resolveQidsToAzwiki(
-					globalQidSet,
-					qidToSites,
-					signal,
-					this.wikidataApi
+				const resolvedResults = Array.from(globalCatToSites.entries()).map(
+					([title, sitesSet]) => ({
+						title,
+						sources: Array.from(sitesSet),
+					})
 				);
 
 				if (resolvedResults.length === 0) {

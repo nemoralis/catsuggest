@@ -11,28 +11,20 @@ const {
 	ANCESTOR_CHECK_DEPTH,
 	log,
 } = require('./constants.js');
-const { fetchFullQuery, retryApiCall } = require('./api.js');
-const { qidAzwikiCache, loadQidCache, saveQidCache } = require('./cache.js');
-
-function fetchParentCatsSuggestions(foreignApi, siteData, lang, globalQidSet, qidToSites, qid) {
+const { fetchFullQuery } = require('./api.js');
+function fetchParentCatsSuggestions(foreignApi, siteData, lang, globalCatToSites, qid) {
 	const cacheKey = CACHE_KEY_FOREIGN_PREFIX + qid + '-' + siteData.site;
 	const cached = mw.storage.get(cacheKey);
 	if (cached) {
 		try {
 			const cachedItems = JSON.parse(cached);
-			if (
-				Array.isArray(cachedItems) &&
-				cachedItems.length > 0 &&
-				typeof cachedItems[0] === 'string' &&
-				cachedItems[0].startsWith('Q')
-			) {
+			if (Array.isArray(cachedItems)) {
 				log('[parentCats]', siteData.site, '→ cache hit:', cachedItems);
-				cachedItems.forEach((qidItem) => {
-					globalQidSet.add(qidItem);
-					if (!qidToSites.has(qidItem)) {
-						qidToSites.set(qidItem, new Set());
+				cachedItems.forEach((catTitle) => {
+					if (!globalCatToSites.has(catTitle)) {
+						globalCatToSites.set(catTitle, new Set());
 					}
-					qidToSites.get(qidItem).add(lang);
+					globalCatToSites.get(catTitle).add(lang);
 				});
 				return;
 			}
@@ -50,48 +42,41 @@ function fetchParentCatsSuggestions(foreignApi, siteData, lang, globalQidSet, qi
 		titles: siteData.title,
 		gcllimit: 'max',
 		gclshow: '!hidden',
-		prop: 'pageprops',
-		ppprop: 'wikibase_item',
+		prop: 'langlinks',
+		lllang: CURRENT_WIKI.replace('wiki', ''),
 	}).then((catResp) => {
 		const pages = catResp.pages || {};
-		const catQidsForCache = [];
+		const azwikiCatsForCache = [];
 		Object.values(pages).forEach((p) => {
-			if (p.pageprops && p.pageprops.wikibase_item) {
-				const qidItem = p.pageprops.wikibase_item;
-				globalQidSet.add(qidItem);
-				catQidsForCache.push(qidItem);
-				if (!qidToSites.has(qidItem)) {
-					qidToSites.set(qidItem, new Set());
+			if (p.langlinks && p.langlinks.length > 0) {
+				const azwikiTitle = p.langlinks[0]['*'];
+				azwikiCatsForCache.push(azwikiTitle);
+				if (!globalCatToSites.has(azwikiTitle)) {
+					globalCatToSites.set(azwikiTitle, new Set());
 				}
-				qidToSites.get(qidItem).add(lang);
+				globalCatToSites.get(azwikiTitle).add(lang);
 			}
 		});
-		if (catQidsForCache.length > 0) {
-			log('[parentCats]', siteData.site, '→ API result:', catQidsForCache);
-			mw.storage.set(cacheKey, JSON.stringify(catQidsForCache), CACHE_TTL_FOREIGN);
+		if (azwikiCatsForCache.length > 0) {
+			log('[parentCats]', siteData.site, '→ API result:', azwikiCatsForCache);
+			mw.storage.set(cacheKey, JSON.stringify(azwikiCatsForCache), CACHE_TTL_FOREIGN);
 		}
 	});
 }
 
-function fetchMembersSuggestions(foreignApi, siteData, lang, globalQidSet, qidToSites, qid) {
+function fetchMembersSuggestions(foreignApi, siteData, lang, globalCatToSites, qid) {
 	const cacheKey = CACHE_KEY_MEMBERS_FOREIGN_PREFIX + qid + '-' + siteData.site;
 	const cached = mw.storage.get(cacheKey);
 	if (cached) {
 		try {
 			const cachedItems = JSON.parse(cached);
-			if (
-				Array.isArray(cachedItems) &&
-				cachedItems.length > 0 &&
-				typeof cachedItems[0] === 'string' &&
-				cachedItems[0].startsWith('Q')
-			) {
+			if (Array.isArray(cachedItems)) {
 				log('[members]', siteData.site, '→ cache hit:', cachedItems);
-				cachedItems.forEach((qidItem) => {
-					globalQidSet.add(qidItem);
-					if (!qidToSites.has(qidItem)) {
-						qidToSites.set(qidItem, new Set());
+				cachedItems.forEach((catTitle) => {
+					if (!globalCatToSites.has(catTitle)) {
+						globalCatToSites.set(catTitle, new Set());
 					}
-					qidToSites.get(qidItem).add(lang);
+					globalCatToSites.get(catTitle).add(lang);
 				});
 				return;
 			}
@@ -109,96 +94,25 @@ function fetchMembersSuggestions(foreignApi, siteData, lang, globalQidSet, qidTo
 		gcmtitle: siteData.title,
 		gcmlimit: 'max',
 		gcmtype: 'page|subcat',
-		prop: 'pageprops',
-		ppprop: 'wikibase_item',
+		prop: 'langlinks',
+		lllang: CURRENT_WIKI.replace('wiki', ''),
 	}).then((memberResp) => {
 		const pages = memberResp.pages || {};
-		const memberQidsForCache = [];
+		const azwikiCatsForCache = [];
 		Object.values(pages).forEach((p) => {
-			if (p.pageprops && p.pageprops.wikibase_item) {
-				const qidItem = p.pageprops.wikibase_item;
-				globalQidSet.add(qidItem);
-				memberQidsForCache.push(qidItem);
-				if (!qidToSites.has(qidItem)) {
-					qidToSites.set(qidItem, new Set());
+			if (p.langlinks && p.langlinks.length > 0) {
+				const azwikiTitle = p.langlinks[0]['*'];
+				azwikiCatsForCache.push(azwikiTitle);
+				if (!globalCatToSites.has(azwikiTitle)) {
+					globalCatToSites.set(azwikiTitle, new Set());
 				}
-				qidToSites.get(qidItem).add(lang);
+				globalCatToSites.get(azwikiTitle).add(lang);
 			}
 		});
-		if (memberQidsForCache.length > 0) {
-			mw.storage.set(cacheKey, JSON.stringify(memberQidsForCache), CACHE_TTL_FOREIGN);
+		if (azwikiCatsForCache.length > 0) {
+			mw.storage.set(cacheKey, JSON.stringify(azwikiCatsForCache), CACHE_TTL_FOREIGN);
 		}
 	});
-}
-
-async function resolveQidsToAzwiki(globalQidSet, qidToSites, signal, wikidataApi) {
-	loadQidCache();
-	const uncachedQids = [];
-	const results = [];
-
-	globalQidSet.forEach((qid) => {
-		if (qidAzwikiCache.has(qid)) {
-			const title = qidAzwikiCache.get(qid);
-			if (title) {
-				results.push({
-					qid,
-					title,
-					sources: Array.from(qidToSites.get(qid) || []),
-				});
-			}
-		} else {
-			uncachedQids.push(qid);
-		}
-	});
-
-	if (uncachedQids.length > 0) {
-		const resolvePromises = [];
-		for (let i = 0; i < uncachedQids.length; i += BATCH_SIZE_API) {
-			if (signal && signal.aborted) {
-				throw new DOMException('Aborted', 'AbortError');
-			}
-			const batch = uncachedQids.slice(i, i + BATCH_SIZE_API);
-			resolvePromises.push(
-				retryApiCall(() =>
-					wikidataApi.get({
-						action: 'wbgetentities',
-						ids: batch.join('|'),
-						props: 'sitelinks',
-						sitefilter: CURRENT_WIKI,
-						format: 'json',
-					})
-				)
-			);
-		}
-
-		const resolveResults = await Promise.all(resolvePromises);
-		resolveResults.forEach((wdResp) => {
-			if (!wdResp.entities) {
-				return;
-			}
-			Object.entries(wdResp.entities).forEach(([qid, ent]) => {
-				if (ent.sitelinks && ent.sitelinks[CURRENT_WIKI]) {
-					const title = ent.sitelinks[CURRENT_WIKI].title;
-					qidAzwikiCache.set(qid, title);
-					results.push({
-						qid,
-						title,
-						sources: Array.from(qidToSites.get(qid) || []),
-					});
-				} else {
-					qidAzwikiCache.set(qid, null);
-				}
-			});
-		});
-	}
-
-	log(
-		'QID resolution complete →',
-		results.map((r) => r.title)
-	);
-	saveQidCache();
-
-	return results;
 }
 
 async function buildParentCatsSuggestions(rawResults, currentCats, api, currentPageTitle) {
@@ -533,7 +447,6 @@ async function buildMembersSuggestions(rawResults, localData, api) {
 module.exports = {
 	fetchParentCatsSuggestions,
 	fetchMembersSuggestions,
-	resolveQidsToAzwiki,
 	buildParentCatsSuggestions,
 	buildExistingRemovals,
 	buildMembersSuggestions,

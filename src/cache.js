@@ -1,6 +1,4 @@
 const {
-	CACHE_KEY_QID_AZWIKI,
-	CACHE_TTL_QID_AZWIKI,
 	CACHE_KEY_PROCESSED_PAGES,
 	CACHE_TTL_PROCESSED_PAGES,
 	MAX_PROCESSED_PAGES,
@@ -9,38 +7,6 @@ const {
 	EXCLUDED_TITLE_KEYWORDS,
 	EXCLUDED_KEYWORD_ALLOW_PATTERNS,
 } = require('./constants.js');
-
-const qidAzwikiCache = new Map();
-let qidCacheLoaded = false;
-
-function loadQidCache() {
-	if (qidCacheLoaded) {
-		return;
-	}
-	qidCacheLoaded = true;
-	const raw = mw.storage.get(CACHE_KEY_QID_AZWIKI);
-	if (!raw) {
-		return;
-	}
-	try {
-		const entries = JSON.parse(raw);
-		if (Array.isArray(entries)) {
-			entries.forEach(([qid, title]) => qidAzwikiCache.set(qid, title));
-		}
-	} catch (_err) {
-		mw.log.warn('Save QID cache error:', _err);
-		mw.storage.remove(CACHE_KEY_QID_AZWIKI);
-	}
-}
-
-function saveQidCache() {
-	const entries = Array.from(qidAzwikiCache.entries());
-	mw.storage.set(CACHE_KEY_QID_AZWIKI, JSON.stringify(entries), CACHE_TTL_QID_AZWIKI);
-}
-
-function getQidCache() {
-	return qidAzwikiCache;
-}
 
 function isPageProcessed(pageId) {
 	if (!pageId) {
@@ -138,10 +104,6 @@ function isCatPageExcluded(pageName) {
 }
 
 module.exports = {
-	qidAzwikiCache,
-	loadQidCache,
-	saveQidCache,
-	getQidCache,
 	isPageProcessed,
 	markPageAsProcessed,
 	loadSiteMetadata,
