@@ -124,30 +124,7 @@
 							/>
 						</div>
 
-						<div v-if="langTab === 'large'" :class="gridClass">
-							<div
-								v-if="filteredSitelinks.length === 0"
-								style="
-									color: var(--color-subtle, #72777d);
-									font-size: 14px;
-									padding: 8px 0;
-									grid-column: 1 / -1;
-								"
-							>
-								Heç bir dil tapılmadı.
-							</div>
-							<div v-for="site in filteredSitelinks" :key="site.site">
-								<cdx-checkbox
-									v-model="selectedSites"
-									:inputValue="site.site"
-									:disabled="loading"
-								>
-									{{ site.name }} ({{ site.lang }})
-								</cdx-checkbox>
-							</div>
-						</div>
-
-						<div v-if="langTab === 'small'" :class="gridClass">
+						<div :class="gridClass">
 							<div
 								v-if="filteredSitelinks.length === 0"
 								style="
