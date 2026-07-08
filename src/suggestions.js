@@ -392,20 +392,73 @@ async function buildExistingRemovals(currentCats, api) {
 		if (!parentMap.has(t)) parentMap.set(t, []);
 	});
 
-	const removalMap = new Map();
+	// Build a reverse map: category → its direct children that are also on the page.
+	const childMap = new Map();
+	currentCats.forEach((cat) => childMap.set(cat, []));
 	currentCats.forEach((cat) => {
 		const parents = parentMap.get(cat) || [];
 		parents.forEach((p) => {
 			if (currentCatsSet.has(p)) {
-				const existing = removalMap.get(p);
-				if (existing) {
-					if (!existing.reasons.includes(cat)) existing.reasons.push(cat);
-				} else {
-					removalMap.set(p, { title: p, selected: false, reasons: [cat] });
-				}
+				childMap.get(p).push(cat);
 			}
 		});
 	});
+
+	// Compute all transitive descendants (within currentCats) for each category.
+	const allDescendants = new Map();
+	currentCats.forEach((cat) => {
+		const desc = new Set();
+		const queue = [...(childMap.get(cat) || [])];
+		const visited = new Set([cat]);
+		while (queue.length > 0) {
+			const node = queue.shift();
+			if (visited.has(node)) {
+				continue;
+			}
+			visited.add(node);
+			desc.add(node);
+			(childMap.get(node) || []).forEach((child) => {
+				if (!visited.has(child)) {
+					queue.push(child);
+				}
+			});
+		}
+		allDescendants.set(cat, desc);
+	});
+
+	// candidateMap: a category is removable if it has transitive descendants on the page.
+	// .reasons stores only direct children (for display clarity in the UI).
+	// The algorithm uses allDescendants to check for surviving descendants.
+	const candidateMap = new Map();
+	currentCats.forEach((cat) => {
+		const directChildren = childMap.get(cat) || [];
+		const descendants = allDescendants.get(cat);
+		if (descendants && descendants.size > 0) {
+			candidateMap.set(cat, { title: cat, selected: false, reasons: directChildren.slice() });
+		}
+	});
+
+	// Build the valid removal set upward from empty.
+	// A candidate qualifies if at least one of its transitive descendants will survive
+	// on the page (i.e., is not itself in the removal set).
+	const removalMap = new Map();
+	let changed = true;
+	while (changed) {
+		changed = false;
+		for (const [title, entry] of candidateMap) {
+			if (removalMap.has(title)) {
+				continue;
+			}
+			const descendants = allDescendants.get(title);
+			const hasSurvivingDescendant = descendants
+				? [...descendants].some((d) => !removalMap.has(d))
+				: false;
+			if (hasSurvivingDescendant) {
+				removalMap.set(title, entry);
+				changed = true;
+			}
+		}
+	}
 
 	log(
 		'Existing removals:',
