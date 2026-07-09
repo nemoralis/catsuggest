@@ -1,3 +1,5 @@
+const cfg = require('./catsuggest-config.json');
+
 const ALLOWED_NAMESPACES = [0, 4, 12, 14, 100];
 const CATEGORY_NAMESPACE = 14;
 const CURRENT_WIKI = 'azwiki';
@@ -32,80 +34,14 @@ const MAX_PROCESSED_PAGES = 500;
 const MAX_RETRIES = 3;
 const RETRY_BASE_DELAY_MS = 5000;
 const USER_AGENT = 'Gadget-CatSuggest/2.0 (https://w.wiki/Qf9x)';
-const EXCLUDED_SITES = new Set([
-	'commonswiki',
-	'metawiki',
-	'specieswiki',
-	'wikidatawiki',
-	'incubatorwiki',
-	'foundationwiki',
-	'testwiki',
-	'test2wiki',
-	'sourceswiki',
-]);
 
-const EXCLUDED_TITLE_KEYWORDS = [
-	'doğulanlar',
-	'vəfat edənlər',
-	'ölənlər',
-	'dəfn olunanlar',
-	'təltif olunanlar',
-	'təltif edilənlər',
-	'laureatları',
-	'kavalerləri',
-	'layiq görülmüşlər',
-	'üzvləri',
-	'məzunları',
-	'qaralamalar',
-	'Yaşayan insanlar',
-	'Əlifba sırasına görə',
-	'Vikipediya:',
-	'Danışan məqalələr',
-	'şablonlar',
-	'səhifələr',
-];
-const EXCLUDED_KEYWORD_ALLOW_PATTERNS = [
-	/Komitəsinin üzvləri/i,
-	/Komissiyasının üzvləri/i,
-	/Bürosunun üzvləri/i,
-	/Şurasının üzvləri/i,
-	/Heyətinin üzvləri/i,
-	/Parlamentinin üzvləri/i,
-	/müxbir üzvləri/i,
-	/həqiqi üzvləri/i,
-	/fəxri üzvləri/i,
-	/nəticəsində ölənlər/i,
-];
-const EXCLUDED_TITLES = new Set([
-	'Kateqoriya:Kişi',
-	'Kateqoriya:Kişilər',
-	'Kateqoriya:Qadın',
-	'Kateqoriya:Qadınlar',
-	'Kateqoriya:İnsanlar',
-	'Kateqoriya:SSRİ',
-	'Kateqoriya:Tarix',
-	'Kateqoriya:Diplomatiya',
-	'Kateqoriya:Dilçilər',
-	'Kateqoriya:Qaralama halında olan məqalələr',
-	'Kateqoriya:İstinad xətası olan səhifələr',
-	'Kateqoriya:Abunəlik tələb edən məzmuna keçidi olan səhifələr',
-]);
-const LARGE_WIKI_SITES = new Set([
-	'enwiki',
-	'ruwiki',
-	'eswiki',
-	'frwiki',
-	'dewiki',
-	'itwiki',
-	'ukwiki',
-	'trwiki',
-	'arwiki',
-	'svwiki',
-	'nlwiki',
-	'plwiki',
-	'jawiki',
-	'zhwiki',
-]);
+const EXCLUDED_SITES = new Set(cfg.excludedSites);
+const EXCLUDED_TITLE_KEYWORDS = cfg.excludedTitleKeywords;
+const EXCLUDED_KEYWORD_ALLOW_PATTERNS = cfg.excludedKeywordAllowPatterns.map(
+	(p) => new RegExp(p, 'i')
+);
+const EXCLUDED_TITLES = new Set(cfg.excludedTitles);
+const LARGE_WIKI_SITES = new Set(cfg.largeWikiSites);
 
 const log = DEBUG ? (...args) => console.log('[CatSuggest]', ...args) : () => {}; // eslint-disable-line no-console
 

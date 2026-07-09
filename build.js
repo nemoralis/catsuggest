@@ -10,6 +10,7 @@ function externalizeJsonPlugin() {
 		// eslint-disable-next-line no-shadow
 		setup( build ) {
 			build.onResolve( { filter: /catsuggest-check\.json$/ }, ( args ) => ({ path: args.path, external: true }) );
+			build.onResolve( { filter: /catsuggest-config\.json$/ }, ( args ) => ({ path: args.path, external: true }) );
 		}
 	};
 }
