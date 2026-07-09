@@ -8,9 +8,14 @@ const {
 	EXCLUDED_KEYWORD_ALLOW_PATTERNS,
 } = require('./constants.js');
 
+let processedSet = null;
+
 function isPageProcessed(pageId) {
 	if (!pageId) {
 		return false;
+	}
+	if (processedSet) {
+		return processedSet.has(pageId);
 	}
 	const raw = mw.storage.get(CACHE_KEY_PROCESSED_PAGES);
 	if (!raw) {
@@ -18,7 +23,11 @@ function isPageProcessed(pageId) {
 	}
 	try {
 		const arr = JSON.parse(raw);
-		return Array.isArray(arr) && arr.includes(pageId);
+		if (Array.isArray(arr)) {
+			processedSet = new Set(arr);
+			return processedSet.has(pageId);
+		}
+		return false;
 	} catch (_err) {
 		mw.log.debug('Is page processed error:', _err);
 		return false;
@@ -48,6 +57,9 @@ function markPageAsProcessed(pageId) {
 			arr = arr.slice(-MAX_PROCESSED_PAGES);
 		}
 		mw.storage.set(CACHE_KEY_PROCESSED_PAGES, JSON.stringify(arr), CACHE_TTL_PROCESSED_PAGES);
+		if (processedSet) {
+			processedSet.add(pageId);
+		}
 	}
 }
 
