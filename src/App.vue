@@ -484,6 +484,7 @@ const {
 	MAX_DEPTH1_SUBCATS,
 	MAX_DEPTH2_SUBCATS,
 	DEPTH2_BATCH_SIZE,
+	ENABLE_EDIT_GROUP_LINKS,
 	log,
 	debounce,
 	escapeRegex,
@@ -1163,7 +1164,7 @@ export default {
 			}
 
 			const editGroupSuffix =
-				selectedItems.length >= 8
+				ENABLE_EDIT_GROUP_LINKS && selectedItems.length >= 8
 					? ' ([[:toolforge:editgroups-azwiki/b/CS/' + generateBatchId() + '|detallar]])'
 					: '';
 
