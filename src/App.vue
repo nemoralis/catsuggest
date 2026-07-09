@@ -487,6 +487,7 @@ const {
 	log,
 	debounce,
 	escapeRegex,
+	generateBatchId,
 } = require('./constants.js');
 const {
 	sleep,
@@ -1163,9 +1164,7 @@ export default {
 
 			const editGroupSuffix =
 				selectedItems.length >= 8
-					? ' ([[:toolforge:editgroups-azwiki/b/CS/' +
-						this.generateBatchId() +
-						'|detallar]])'
+					? ' ([[:toolforge:editgroups-azwiki/b/CS/' + generateBatchId() + '|detallar]])'
 					: '';
 
 			this.status = 'editing';
@@ -1219,12 +1218,6 @@ export default {
 			} finally {
 				this.loading = false;
 			}
-		},
-
-		generateBatchId() {
-			return (
-				Math.random().toString(16).slice(2, 10) + Math.random().toString(16).slice(2, 10)
-			);
 		},
 
 		getPageUrl(title) {
