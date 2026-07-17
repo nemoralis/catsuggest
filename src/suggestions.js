@@ -417,7 +417,7 @@ async function buildExistingRemovals(
 	return Array.from(removalMap.values());
 }
 
-async function buildMembersSuggestions(rawResults, localData, api) {
+async function buildMembersSuggestions(rawResults, localData, api, currentPageCats = new Set()) {
 	const { members: currentMembersSet, subcats: currentSubcatsSet } = localData;
 	const suggestionTitles = rawResults.map((r) => r.title);
 	const allPagesCats = new Map();
@@ -466,6 +466,10 @@ async function buildMembersSuggestions(rawResults, localData, api) {
 				return false;
 			}
 			if (currentMembersSet.has(item.title) || seenTitles.has(item.title)) {
+				return false;
+			}
+			if (currentPageCats.has(item.title)) {
+				log('Filtered out parent of current page:', item.title);
 				return false;
 			}
 			seenTitles.add(item.title);

@@ -15,7 +15,7 @@ global.mw = {
 	log: { warn: () => {}, debug: () => {} },
 };
 
-const { buildParentCatsSuggestions, buildExistingRemovals } = await import(
+const { buildParentCatsSuggestions, buildExistingRemovals, buildMembersSuggestions } = await import(
 	'../src/suggestions.js'
 );
 
@@ -235,5 +235,60 @@ describe('buildExistingRemovals', () => {
 			{ get: mockGet }
 		);
 		expect(removals).toHaveLength(0);
+	});
+});
+
+describe('buildMembersSuggestions', () => {
+	it('should filter out parent categories of the current page', async () => {
+		const mockGet = vi.fn(async (params) => {
+			const titles = params.titles || '';
+			if (titles.includes('Kateqoriya:Ekzistensial risk')) {
+				return {
+					query: {
+						pages: {
+							1: {
+								title: 'Kateqoriya:Ekzistensial risk',
+								categories: [],
+							},
+						},
+					},
+				};
+			}
+			if (titles.includes('Kateqoriya:İnsan nəslinin kəsilməsi')) {
+				return {
+					query: {
+						pages: {
+							2: {
+								title: 'Kateqoriya:İnsan nəslinin kəsilməsi',
+								categories: [
+									{ title: 'Kateqoriya:Ekzistensial risk' },
+								],
+							},
+						},
+					},
+				};
+			}
+			return { query: { pages: {} } };
+		});
+
+		const rawResults = [
+			{ title: 'Kateqoriya:Ekzistensial risk', sources: ['en'] },
+			{ title: 'Kateqoriya:İnsan nəslinin kəsilməsi', sources: ['en'] },
+		];
+		const localData = {
+			members: new Set(),
+			subcats: new Set(),
+		};
+		const currentPageCats = new Set(['Kateqoriya:Ekzistensial risk']);
+
+		const suggestions = await buildMembersSuggestions(
+			rawResults,
+			localData,
+			{ get: mockGet },
+			currentPageCats
+		);
+		const titles = suggestions.map((s) => s.title);
+		expect(titles).not.toContain('Kateqoriya:Ekzistensial risk');
+		expect(titles).toContain('Kateqoriya:İnsan nəslinin kəsilməsi');
 	});
 });

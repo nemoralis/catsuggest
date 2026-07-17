@@ -1054,10 +1054,12 @@ export default {
 						parentMap
 					);
 				} else {
+					const currentPageCats = await this.fetchParentCatsState();
 					this.suggestions = await buildMembersSuggestions(
 						resolvedResults,
 						localData,
-						this.api
+						this.api,
+						new Set(currentPageCats)
 					);
 				}
 
