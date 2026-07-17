@@ -9,6 +9,7 @@ async function editPage(api, title, params) {
 					action: 'edit',
 					title,
 					tags: 'catsuggest',
+					nocreate: true,
 					maxlag: MAXLAG_SECONDS,
 					format: 'json',
 				},
