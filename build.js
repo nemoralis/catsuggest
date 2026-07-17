@@ -4,13 +4,27 @@ const fs = require( 'fs' );
 const path = require( 'path' );
 const { parse, compileTemplate } = require( '@vue/compiler-sfc' );
 
+const isDev = process.argv.includes( '--dev' );
+const isWatch = process.argv.includes( '--watch' );
+
 function externalizeJsonPlugin() {
 	return {
 		name: 'external-json',
 		// eslint-disable-next-line no-shadow
 		setup( build ) {
-			build.onResolve( { filter: /catsuggest-check\.json$/ }, ( args ) => ({ path: args.path, external: true }) );
-			build.onResolve( { filter: /catsuggest-config\.json$/ }, ( args ) => ({ path: args.path, external: true }) );
+			if ( isDev ) {
+				// Dev: resolve to local files so esbuild bundles them as objects
+				build.onResolve( { filter: /catsuggest-check\.json$/ }, ( args ) => ({
+					path: path.resolve( __dirname, 'src', 'catsuggest-check.json' )
+				}) );
+				build.onResolve( { filter: /catsuggest-config\.json$/ }, ( args ) => ({
+					path: path.resolve( __dirname, 'src', 'catsuggest-config.json' )
+				}) );
+			} else {
+				// Prod: externalize for MediaWiki gadget packaging system
+				build.onResolve( { filter: /catsuggest-check\.json$/ }, ( args ) => ({ path: args.path, external: true }) );
+				build.onResolve( { filter: /catsuggest-config\.json$/ }, ( args ) => ({ path: args.path, external: true }) );
+			}
 		}
 	};
 }
@@ -101,7 +115,7 @@ function vueSfcPlugin() {
 }
 
 async function build() {
-	await esbuild.build( {
+	const buildOptions = {
 		entryPoints: [ 'src/index.js' ],
 		bundle: true,
 		format: 'cjs',
@@ -110,7 +124,7 @@ async function build() {
 		outfile: 'dist/catsuggest.js',
 		external: [ 'vue', '@wikimedia/codex', 'mediawiki.ForeignApi', 'mediawiki.util', 'mediawiki.storage', 'mediawiki.Title' ],
 		plugins: [ externalizeJsonPlugin(), vueSfcPlugin() ],
-		minify: true,
+		minify: !isDev,
 		banner: {
 			js: `(function(){/*!
  * CatSuggest — Kateqoriya təklifçisi
@@ -121,9 +135,17 @@ async function build() {
  */`,
 		},
 		footer: { js: '})();' },
-	} );
-	const size = ( fs.statSync( 'dist/catsuggest.js' ).size / 1024 ).toFixed( 1 );
-	console.log( `Build complete: dist/catsuggest.js (${ size }KB)` );
+	};
+
+	if ( isWatch ) {
+		const ctx = await esbuild.context( buildOptions );
+		await ctx.watch();
+		console.log( 'Watching for changes...' );
+	} else {
+		await esbuild.build( buildOptions );
+		const size = ( fs.statSync( 'dist/catsuggest.js' ).size / 1024 ).toFixed( 1 );
+		console.log( `Build complete: dist/catsuggest.js (${ size }KB)${ isDev ? ' (dev, unminified)' : '' }` );
+	}
 }
 
 build().catch( ( err ) => {
