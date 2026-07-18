@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
 // constants.js doesn't depend on mw globals, so no setup needed
-const { escapeRegex, debounce, generateBatchId } = await import(
+const { escapeRegex, debounce, generateBatchId, REMOVAL_EXCLUDED_KEYWORDS } = await import(
 	'../src/constants.js'
 );
 
@@ -95,6 +95,20 @@ describe('debounce', () => {
 		debounced.call(obj);
 		vi.advanceTimersByTime(100);
 		expect(received[0]).toBe(obj);
+	});
+});
+
+describe('REMOVAL_EXCLUDED_KEYWORDS', () => {
+	it('should load keywords from config', () => {
+		expect(REMOVAL_EXCLUDED_KEYWORDS).toContain('ilin filmləri');
+	});
+
+	it('should match year-based category titles by keyword', () => {
+		const isExcluded = (title) =>
+			REMOVAL_EXCLUDED_KEYWORDS.some((kw) => title.includes(kw));
+		expect(isExcluded('Kateqoriya:2004-cü ilin filmləri')).toBe(true);
+		expect(isExcluded('Kateqoriya:2023-cü ilin filmləri')).toBe(true);
+		expect(isExcluded('Kateqoriya:ABŞ filmləri')).toBe(false);
 	});
 });
 

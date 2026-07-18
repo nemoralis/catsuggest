@@ -56,6 +56,9 @@
 		"Kateqoriya:İstinad xətası olan səhifələr",
 		"Kateqoriya:Abunəlik tələb edən məzmuna keçidi olan səhifələr"
 	],
+	"removalExcludedKeywords": [
+		"ilin filmləri"
+	],
 	"largeWikiSites": [
 		"enwiki",
 		"ruwiki",

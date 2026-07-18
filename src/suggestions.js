@@ -8,6 +8,7 @@ const {
 	EXCLUDED_TITLE_KEYWORDS,
 	EXCLUDED_KEYWORD_ALLOW_PATTERNS,
 	EXCLUDED_TITLES,
+	REMOVAL_EXCLUDED_KEYWORDS,
 	ALLOWED_NAMESPACES,
 	ANCESTOR_CHECK_DEPTH,
 	log,
@@ -316,11 +317,18 @@ async function buildParentCatsSuggestions(
 		suggestions.map((s) => s.title)
 	);
 
+	const isRemovalExcluded = (title) => REMOVAL_EXCLUDED_KEYWORDS.some((kw) => title.includes(kw));
+
 	const pageCategoryName = CATEGORY_PREFIX + currentPageTitle;
 	suggestions.forEach((s) => {
 		const parents = parentMap.get(s.title) || [];
 		parents.forEach((p) => {
-			if (currentCatsSet.has(p) && !templateAddedCats.has(p) && p !== pageCategoryName) {
+			if (
+				currentCatsSet.has(p) &&
+				!templateAddedCats.has(p) &&
+				p !== pageCategoryName &&
+				!isRemovalExcluded(p)
+			) {
 				s.removals.push({ title: p, selected: false });
 			}
 		});
@@ -429,6 +437,8 @@ async function buildExistingRemovals(
 	// candidateMap: a category is removable if it has transitive descendants on the page.
 	// .reasons stores only direct children (for display clarity in the UI).
 	// The algorithm uses allDescendants to check for surviving descendants.
+	const isRemovalExcluded = (title) => REMOVAL_EXCLUDED_KEYWORDS.some((kw) => title.includes(kw));
+
 	const candidateMap = new Map();
 	const pageCategoryName = currentPageTitle ? CATEGORY_PREFIX + currentPageTitle : '';
 	currentCats.forEach((cat) => {
@@ -436,6 +446,9 @@ async function buildExistingRemovals(
 			return;
 		}
 		if (pageCategoryName && cat === pageCategoryName) {
+			return;
+		}
+		if (isRemovalExcluded(cat)) {
 			return;
 		}
 		const descendants = descendantMap.get(cat);

@@ -41,6 +41,7 @@ const EXCLUDED_KEYWORD_ALLOW_PATTERNS = cfg.excludedKeywordAllowPatterns.map(
 	(p) => new RegExp(p, 'i')
 );
 const EXCLUDED_TITLES = new Set(cfg.excludedTitles);
+const REMOVAL_EXCLUDED_KEYWORDS = cfg.removalExcludedKeywords || [];
 const LARGE_WIKI_SITES = new Set(cfg.largeWikiSites);
 
 const log = DEBUG ? (...args) => console.log('[CatSuggest]', ...args) : () => {}; // eslint-disable-line no-console
@@ -106,6 +107,7 @@ module.exports = {
 	EXCLUDED_TITLE_KEYWORDS,
 	EXCLUDED_KEYWORD_ALLOW_PATTERNS,
 	EXCLUDED_TITLES,
+	REMOVAL_EXCLUDED_KEYWORDS,
 	LARGE_WIKI_SITES,
 	log,
 	escapeRegex,
