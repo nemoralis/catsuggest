@@ -14,6 +14,17 @@ const {
 } = require('./constants.js');
 const { fetchFullQuery } = require('./api.js');
 const { fetchPageContent } = require('./edit.js');
+/**
+ * Fetch parent categories of a page from a foreign wiki via langlinks.
+ * Results are cached in mw.storage and added to globalCatToSites map.
+ *
+ * @param {Object} foreignApi
+ * @param {Object} siteData
+ * @param {string} lang
+ * @param {Map} globalCatToSites
+ * @param {string} qid
+ * @return {Promise|undefined}
+ */
 function fetchParentCatsSuggestions(foreignApi, siteData, lang, globalCatToSites, qid) {
 	const cacheKey = CACHE_KEY_FOREIGN_PREFIX + qid + '-' + siteData.site;
 	const cached = mw.storage.get(cacheKey);
@@ -66,6 +77,17 @@ function fetchParentCatsSuggestions(foreignApi, siteData, lang, globalCatToSites
 	});
 }
 
+/**
+ * Fetch category members (pages + subcats) of a page from a foreign wiki via langlinks.
+ * Results are cached in mw.storage and added to globalCatToSites map.
+ *
+ * @param {Object} foreignApi
+ * @param {Object} siteData
+ * @param {string} lang
+ * @param {Map} globalCatToSites
+ * @param {string} qid
+ * @return {Promise|undefined}
+ */
 function fetchMembersSuggestions(foreignApi, siteData, lang, globalCatToSites, qid) {
 	const cacheKey = CACHE_KEY_MEMBERS_FOREIGN_PREFIX + qid + '-' + siteData.site;
 	const cached = mw.storage.get(cacheKey);
@@ -117,6 +139,14 @@ function fetchMembersSuggestions(foreignApi, siteData, lang, globalCatToSites, q
 	});
 }
 
+/**
+ * @param {Array<{title: string, sources: string[]}>} rawResults - Candidate suggestions from foreign wikis
+ * @param {string[]} currentCats - Categories already on the page
+ * @param {{ get: Function }} api - MediaWiki API object
+ * @param {string} currentPageTitle - Title of the current page (no prefix)
+ * @param {Set<string>} templateAddedCats - Categories added via templates (excluded from removals)
+ * @return {Promise<{suggestions: Array, parentMap: Map}>}
+ */
 async function buildParentCatsSuggestions(
 	rawResults,
 	currentCats,
@@ -305,6 +335,18 @@ async function buildParentCatsSuggestions(
 	return { suggestions, parentMap };
 }
 
+/**
+ * Detect categories on the page that are redundant because they have
+ * descendant categories (direct or transitive) also on the page.
+ * Only the highest-level redundant categories are returned.
+ *
+ * @param {string[]} currentCats - Categories on the page
+ * @param {{ get: Function }} api - MediaWiki API object
+ * @param {Set<string>} templateAddedCats - Categories added via templates (excluded)
+ * @param {Map<string, string[]>} [sharedParentMap] - Pre-fetched parent map to reuse
+ * @param {string} currentPageTitle - Current page title (no prefix)
+ * @return {Promise<Array<{title: string, selected: boolean, reasons: string[]}>>}
+ */
 async function buildExistingRemovals(
 	currentCats,
 	api,
@@ -352,26 +394,36 @@ async function buildExistingRemovals(
 		});
 	});
 
-	// Compute all transitive descendants (within currentCats) for each category.
-	const allDescendants = new Map();
+	// Walk up the ancestor chain (up to ANCESTOR_CHECK_DEPTH) for each category to find
+	// all on-page ancestors. This detects transitive parent-child relationships even when
+	// intermediate categories are not on the page (e.g., grandparent without parent on page).
+	const descendantMap = new Map();
+	currentCats.forEach((cat) => descendantMap.set(cat, new Set()));
+
 	currentCats.forEach((cat) => {
-		const desc = new Set();
-		const queue = [...(childMap.get(cat) || [])];
 		const visited = new Set([cat]);
+		const queue = [...(parentMap.get(cat) || [])];
+		const depths = queue.map(() => 0);
 		while (queue.length > 0) {
 			const node = queue.shift();
+			const nodeDepth = depths.shift();
 			if (visited.has(node)) {
 				continue;
 			}
 			visited.add(node);
-			desc.add(node);
-			(childMap.get(node) || []).forEach((child) => {
-				if (!visited.has(child)) {
-					queue.push(child);
-				}
-			});
+			if (currentCatsSet.has(node) && node !== cat) {
+				descendantMap.get(node).add(cat);
+			}
+			if (nodeDepth < ANCESTOR_CHECK_DEPTH) {
+				const parents = parentMap.get(node) || [];
+				parents.forEach((p) => {
+					if (!visited.has(p)) {
+						queue.push(p);
+						depths.push(nodeDepth + 1);
+					}
+				});
+			}
 		}
-		allDescendants.set(cat, desc);
 	});
 
 	// candidateMap: a category is removable if it has transitive descendants on the page.
@@ -386,10 +438,13 @@ async function buildExistingRemovals(
 		if (pageCategoryName && cat === pageCategoryName) {
 			return;
 		}
-		const directChildren = childMap.get(cat) || [];
-		const descendants = allDescendants.get(cat);
+		const descendants = descendantMap.get(cat);
 		if (descendants && descendants.size > 0) {
-			candidateMap.set(cat, { title: cat, selected: false, reasons: directChildren.slice() });
+			candidateMap.set(cat, {
+				title: cat,
+				selected: false,
+				reasons: Array.from(descendants),
+			});
 		}
 	});
 
@@ -404,7 +459,7 @@ async function buildExistingRemovals(
 			if (removalMap.has(title)) {
 				continue;
 			}
-			const descendants = allDescendants.get(title);
+			const descendants = descendantMap.get(title);
 			const hasSurvivingDescendant = descendants
 				? [...descendants].some((d) => !removalMap.has(d))
 				: false;
@@ -423,6 +478,13 @@ async function buildExistingRemovals(
 	return Array.from(removalMap.values());
 }
 
+/**
+ * @param {Array<{title: string, sources: string[]}>} rawResults - Candidate suggestions from foreign wikis
+ * @param {{ members: Set<string>, subcats: Set<string> }} localData - Current page members/subcats
+ * @param {{ get: Function }} api - MediaWiki API object
+ * @param {Set<string>} currentPageCats - Categories the current page belongs to (to filter out parents)
+ * @return {Promise<Array<{title: string, selected: boolean, sources: string[], isCategory: boolean}>>}
+ */
 async function buildMembersSuggestions(rawResults, localData, api, currentPageCats = new Set()) {
 	const { members: currentMembersSet, subcats: currentSubcatsSet } = localData;
 	const suggestionTitles = rawResults.map((r) => r.title);
@@ -492,6 +554,15 @@ async function buildMembersSuggestions(rawResults, localData, api, currentPageCa
 	return suggestions;
 }
 
+/**
+ * Compare wikitext [[Category:...]] links against API-reported categories
+ * to determine which ones were added by templates (present in API but not in raw wikitext).
+ *
+ * @param {{ get: Function }} api - MediaWiki API object
+ * @param {string} pageTitle - Current page title
+ * @param {string[]} currentCats - Categories reported by the API/wgCategories
+ * @return {Promise<Set<string>>}
+ */
 async function detectTemplateAddedCategories(api, pageTitle, currentCats) {
 	let content;
 	try {

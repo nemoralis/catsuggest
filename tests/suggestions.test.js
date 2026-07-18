@@ -225,6 +225,36 @@ describe('buildExistingRemovals', () => {
 		expect(removals[0].reasons).toContain('Kateqoriya:Şotlandiya filosofları');
 	});
 
+	it('should detect indirect grandparent-grandchild via ancestor walk', async () => {
+		const mockGet = vi.fn(async () => ({
+			query: {
+				pages: {
+					1: {
+						title: 'Kateqoriya:ABŞ-nin dram filmləri',
+						categories: [
+							{ title: 'Kateqoriya:Janrlarına görə ABŞ filmləri' },
+						],
+					},
+					2: {
+						title: 'Kateqoriya:Janrlarına görə ABŞ filmləri',
+						categories: [{ title: 'Kateqoriya:ABŞ filmləri' }],
+					},
+				},
+			},
+		}));
+
+		const removals = await buildExistingRemovals(
+			[
+				'Kateqoriya:ABŞ filmləri',
+				'Kateqoriya:ABŞ-nin dram filmləri',
+			],
+			{ get: mockGet }
+		);
+		expect(removals).toHaveLength(1);
+		expect(removals[0].title).toBe('Kateqoriya:ABŞ filmləri');
+		expect(removals[0].reasons).toContain('Kateqoriya:ABŞ-nin dram filmləri');
+	});
+
 	it('should handle categories with no overlaps', async () => {
 		const mockGet = vi.fn(async () => ({
 			query: { pages: {} },
