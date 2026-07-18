@@ -1051,7 +1051,8 @@ export default {
 						localData,
 						this.api,
 						templateAddedCats,
-						parentMap
+						parentMap,
+						mw.config.get('wgPageName').replace(/_/g, ' ')
 					);
 				} else {
 					const currentPageCats = await this.fetchParentCatsState();

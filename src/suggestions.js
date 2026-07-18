@@ -286,10 +286,11 @@ async function buildParentCatsSuggestions(
 		suggestions.map((s) => s.title)
 	);
 
+	const pageCategoryName = CATEGORY_PREFIX + currentPageTitle;
 	suggestions.forEach((s) => {
 		const parents = parentMap.get(s.title) || [];
 		parents.forEach((p) => {
-			if (currentCatsSet.has(p) && !templateAddedCats.has(p)) {
+			if (currentCatsSet.has(p) && !templateAddedCats.has(p) && p !== pageCategoryName) {
 				s.removals.push({ title: p, selected: false });
 			}
 		});
@@ -308,7 +309,8 @@ async function buildExistingRemovals(
 	currentCats,
 	api,
 	templateAddedCats = new Set(),
-	sharedParentMap = null
+	sharedParentMap = null,
+	currentPageTitle = ''
 ) {
 	const currentCatsSet = new Set(currentCats);
 	const parentMap = sharedParentMap || new Map();
@@ -376,8 +378,12 @@ async function buildExistingRemovals(
 	// .reasons stores only direct children (for display clarity in the UI).
 	// The algorithm uses allDescendants to check for surviving descendants.
 	const candidateMap = new Map();
+	const pageCategoryName = currentPageTitle ? CATEGORY_PREFIX + currentPageTitle : '';
 	currentCats.forEach((cat) => {
 		if (templateAddedCats.has(cat)) {
+			return;
+		}
+		if (pageCategoryName && cat === pageCategoryName) {
 			return;
 		}
 		const directChildren = childMap.get(cat) || [];
