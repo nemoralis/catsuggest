@@ -97,7 +97,10 @@ async function fetchFullQuery(apiInstance, params) {
 	const result = {};
 	let continueToken;
 	do {
-		const reqParams = Object.assign({}, params, { format: 'json' });
+		const reqParams = Object.assign({}, params, {
+			redirects: true,
+			format: 'json',
+		});
 		if (continueToken) {
 			Object.assign(reqParams, continueToken);
 		}

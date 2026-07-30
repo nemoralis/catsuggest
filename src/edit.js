@@ -11,6 +11,7 @@ async function editPage(api, title, params) {
 					tags: 'catsuggest',
 					nocreate: true,
 					maxlag: MAXLAG_SECONDS,
+					redirect: true,
 					format: 'json',
 				},
 				params
@@ -34,6 +35,7 @@ async function fetchPageContent(api, title) {
 			prop: 'revisions',
 			titles: title,
 			rvprop: 'content',
+			redirects: true,
 			format: 'json',
 		})
 	);

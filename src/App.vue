@@ -693,6 +693,7 @@ export default {
 						action: 'wbgetentities',
 						ids: this.qid,
 						props: 'sitelinks',
+						redirects: true,
 						format: 'json',
 					})
 				);
