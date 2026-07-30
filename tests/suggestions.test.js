@@ -222,7 +222,8 @@ describe('buildExistingRemovals', () => {
 		expect(removals).toHaveLength(1);
 		expect(removals[0].title).toBe('Kateqoriya:Britaniya filosofları');
 		expect(removals[0].selected).toBe(false);
-		expect(removals[0].reasons).toContain('Kateqoriya:Şotlandiya filosofları');
+		expect(removals[0].tree[0].title).toBe('Kateqoriya:Şotlandiya filosofları');
+		expect(removals[0].tree[0].children).toEqual([]);
 	});
 
 	it('should detect indirect grandparent-grandchild via ancestor walk', async () => {
@@ -252,7 +253,8 @@ describe('buildExistingRemovals', () => {
 		);
 		expect(removals).toHaveLength(1);
 		expect(removals[0].title).toBe('Kateqoriya:ABŞ filmləri');
-		expect(removals[0].reasons).toContain('Kateqoriya:ABŞ-nin dram filmləri');
+		expect(removals[0].tree[0].title).toBe('Kateqoriya:ABŞ-nin dram filmləri');
+		expect(removals[0].tree[0].children).toEqual([]);
 	});
 
 	it('should handle categories with no overlaps', async () => {

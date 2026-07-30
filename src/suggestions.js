@@ -434,9 +434,64 @@ async function buildExistingRemovals(
 		}
 	});
 
-	// candidateMap: a category is removable if it has transitive descendants on the page.
-	// .reasons stores only direct children (for display clarity in the UI).
-	// The algorithm uses allDescendants to check for surviving descendants.
+	// Walk up from a node through parentMap to find the closest on-page category
+	// (or the candidate itself) — handles missing intermediate categories.
+	// Depth-limited by ANCESTOR_CHECK_DEPTH and memoized to avoid redundant BFS.
+	const findTreeParentCache = new Map();
+	const findTreeParent = (node, candidate) => {
+		const cacheKey = node + '\0' + candidate;
+		if (findTreeParentCache.has(cacheKey)) {
+			return findTreeParentCache.get(cacheKey);
+		}
+		const visited = new Set();
+		const queue = [...(parentMap.get(node) || [])];
+		const depths = queue.map(() => 0);
+		let result = null;
+		while (queue.length > 0) {
+			const p = queue.shift();
+			const pDepth = depths.shift();
+			if (visited.has(p)) {
+				continue;
+			}
+			visited.add(p);
+			if (p === candidate || currentCatsSet.has(p)) {
+				result = p;
+				break;
+			}
+			if (pDepth < ANCESTOR_CHECK_DEPTH) {
+				const grandparents = parentMap.get(p) || [];
+				for (const gp of grandparents) {
+					if (!visited.has(gp)) {
+						queue.push(gp);
+						depths.push(pDepth + 1);
+					}
+				}
+			}
+		}
+		findTreeParentCache.set(cacheKey, result);
+		return result;
+	};
+
+	// Build a tree using path-finding through parentMap.
+	const buildDescendantTree = (ancestorTitle, descendantSet) => {
+		const treeMap = new Map();
+		treeMap.set(ancestorTitle, []);
+		descendantSet.forEach((d) => {
+			const parentInTree = findTreeParent(d, ancestorTitle);
+			if (parentInTree && !treeMap.has(parentInTree)) {
+				treeMap.set(parentInTree, []);
+			}
+			if (parentInTree) {
+				treeMap.get(parentInTree).push(d);
+			}
+		});
+		const toTree = (title) => ({
+			title,
+			children: (treeMap.get(title) || []).sort().map(toTree),
+		});
+		return toTree(ancestorTitle).children;
+	};
+
 	const isRemovalExcluded = (title) => REMOVAL_EXCLUDED_KEYWORDS.some((kw) => title.includes(kw));
 
 	const candidateMap = new Map();
@@ -456,36 +511,36 @@ async function buildExistingRemovals(
 			candidateMap.set(cat, {
 				title: cat,
 				selected: false,
-				reasons: Array.from(descendants),
+				tree: buildDescendantTree(cat, descendants),
 			});
 		}
 	});
 
-	// Build the valid removal set upward from empty.
-	// A candidate qualifies if at least one of its transitive descendants will survive
-	// on the page (i.e., is not itself in the removal set).
+	// Build the valid removal set in a single pass: sort candidates by descendant
+	// count ascending (leaves first) and iterate once. This replaces the O(N²)
+	// convergence loop — a candidate qualifies if at least one of its transitive
+	// descendants will survive on the page (i.e., is not itself in the removal set).
 	const removalMap = new Map();
-	let changed = true;
-	while (changed) {
-		changed = false;
-		for (const [title, entry] of candidateMap) {
-			if (removalMap.has(title)) {
-				continue;
-			}
-			const descendants = descendantMap.get(title);
-			const hasSurvivingDescendant = descendants
-				? [...descendants].some((d) => !removalMap.has(d))
-				: false;
-			if (hasSurvivingDescendant) {
-				removalMap.set(title, entry);
-				changed = true;
-			}
+	const sortedCandidates = Array.from(candidateMap.entries()).sort(
+		(a, b) =>
+			(descendantMap.get(a[0]) || { size: 0 }).size -
+			(descendantMap.get(b[0]) || { size: 0 }).size
+	);
+	for (const [title, entry] of sortedCandidates) {
+		const descendants = descendantMap.get(title);
+		const hasSurvivingDescendant = descendants
+			? [...descendants].some((d) => !removalMap.has(d))
+			: false;
+		if (hasSurvivingDescendant) {
+			removalMap.set(title, entry);
 		}
 	}
 
 	log(
 		'Existing removals:',
-		Array.from(removalMap.values()).map((r) => `${r.title} ← ${r.reasons.join(', ')}`)
+		Array.from(removalMap.values()).map(
+			(r) => `${r.title} ← ${r.tree.map((t) => t.title).join(', ')}`
+		)
 	);
 
 	return Array.from(removalMap.values());

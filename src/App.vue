@@ -339,16 +339,26 @@
 												></s
 											>
 											<template #description
-												><ul
-													style="
-														margin: 2px 0 0;
-														padding-inline-start: 16px;
-													"
-												>
-													<li v-for="r in rem.reasons" :key="r">
-														{{ r }}
-													</li>
-												</ul></template
+												><span
+													v-for="node in rem.flatTree"
+													:key="node.title"
+													:style="{
+														display: 'block',
+														paddingLeft: node.depth * 24 + 4 + 'px',
+													}"
+													><span v-if="node.depth > 0">{{
+														node.isLast ? '└─ ' : '├─ '
+													}}</span
+													><a
+														:href="getPageUrl(node.title)"
+														target="_blank"
+														style="
+															text-decoration: none;
+															color: var(--color-progressive, #36c);
+														"
+														>{{ node.title }}</a
+													></span
+												></template
 											>
 										</cdx-checkbox>
 									</div>
@@ -1055,6 +1065,9 @@ export default {
 						parentMap,
 						mw.config.get('wgPageName').replace(/_/g, ' ')
 					);
+					this.existingRemovals.forEach(
+						(rem) => (rem.flatTree = this.flattenTree(rem.tree, 0))
+					);
 				} else {
 					const currentPageCats = await this.fetchParentCatsState();
 					this.suggestions = await buildMembersSuggestions(
@@ -1296,6 +1309,23 @@ export default {
 		confirmAndApply() {
 			this.confirmDialogShown = false;
 			this.applyChanges();
+		},
+
+		flattenTree(tree, depth = 0, ancestorIsLast = []) {
+			let flat = [];
+			tree.forEach((node, index) => {
+				const isLast = index === tree.length - 1;
+				flat.push({
+					title: node.title,
+					depth,
+					isLast,
+					ancestorIsLast,
+				});
+				flat = flat.concat(
+					this.flattenTree(node.children, depth + 1, [...ancestorIsLast, isLast])
+				);
+			});
+			return flat;
 		},
 
 		onSiteFilterInput: debounce(function (val) {
