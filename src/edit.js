@@ -11,7 +11,6 @@ async function editPage(api, title, params) {
 					tags: 'catsuggest',
 					nocreate: true,
 					maxlag: MAXLAG_SECONDS,
-					redirect: true,
 					format: 'json',
 				},
 				params
@@ -90,6 +89,7 @@ async function addParentCategoriesEdit(api, pageTitle, titlesToAdd, titlesToRemo
 		params.text = content;
 	} else {
 		params.appendtext = '\n' + titlesToAdd.map((t) => `[[${t.replace(/_/g, ' ')}]]`).join('\n');
+		params.redirect = true;
 	}
 
 	await editPage(api, pageTitle, params);
