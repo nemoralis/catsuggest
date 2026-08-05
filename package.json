@@ -9,7 +9,7 @@
     "dev": "concurrently -n build,serve \"npm run build -- --watch\" \"npm run serve:watch\"",
     "serve": "node bin/server.js",
     "serve:watch": "nodemon --watch dist --watch catsuggest.css --ext js,css bin/server.js",
-    "deploy": "npm run build:prod && node bin/deploy.js",
+    "deploy": "npm run test && npm run build:prod && node bin/deploy.js",
     "cattree": "node bin/cattree.js",
     "lint": "eslint \"src/*.{js,vue,css}\"",
     "format": "prettier --write \"src/**/*.{js,vue,css,json}\" \"bin/*.js\" \"catsuggest.css\"",

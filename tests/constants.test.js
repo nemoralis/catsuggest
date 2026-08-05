@@ -1,9 +1,13 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
 // constants.js doesn't depend on mw globals, so no setup needed
-const { escapeRegex, debounce, generateBatchId, REMOVAL_EXCLUDED_KEYWORDS } = await import(
-	'../src/constants.js'
-);
+const {
+	escapeRegex,
+	debounce,
+	generateBatchId,
+	REMOVAL_EXCLUDED_KEYWORDS,
+	isSameCategoryIgnoringPlural,
+} = await import('../src/constants.js');
 
 describe('escapeRegex', () => {
 	it('should escape special regex characters', () => {
@@ -104,8 +108,7 @@ describe('REMOVAL_EXCLUDED_KEYWORDS', () => {
 	});
 
 	it('should match year-based category titles by keyword', () => {
-		const isExcluded = (title) =>
-			REMOVAL_EXCLUDED_KEYWORDS.some((kw) => title.includes(kw));
+		const isExcluded = (title) => REMOVAL_EXCLUDED_KEYWORDS.some((kw) => title.includes(kw));
 		expect(isExcluded('Kateqoriya:2004-cü ilin filmləri')).toBe(true);
 		expect(isExcluded('Kateqoriya:2023-cü ilin filmləri')).toBe(true);
 		expect(isExcluded('Kateqoriya:ABŞ filmləri')).toBe(false);
@@ -122,5 +125,32 @@ describe('generateBatchId', () => {
 		const id1 = generateBatchId();
 		const id2 = generateBatchId();
 		expect(id1).not.toBe(id2);
+	});
+});
+
+describe('isSameCategoryIgnoringPlural', () => {
+	it('should treat identical titles as equal', () => {
+		expect(isSameCategoryIgnoringPlural('Kateqoriya:Oyuncaq', 'Kateqoriya:Oyuncaq')).toBe(true);
+	});
+
+	it('should treat singular and plural forms as equal', () => {
+		expect(isSameCategoryIgnoringPlural('Kateqoriya:Oyuncaq', 'Kateqoriya:Oyuncaqlar')).toBe(
+			true
+		);
+		expect(isSameCategoryIgnoringPlural('Kateqoriya:Oyuncaqlar', 'Kateqoriya:Oyuncaq')).toBe(
+			true
+		);
+		expect(isSameCategoryIgnoringPlural('Kateqoriya:Mühəndis', 'Kateqoriya:Mühəndislər')).toBe(
+			true
+		);
+	});
+
+	it('should return false for unrelated titles', () => {
+		expect(isSameCategoryIgnoringPlural('Kateqoriya:Oyuncaq', 'Kateqoriya:Filosoflar')).toBe(
+			false
+		);
+		expect(isSameCategoryIgnoringPlural('Kateqoriya:Oyuncaqlar', 'Kateqoriya:Oyuncular')).toBe(
+			false
+		);
 	});
 });

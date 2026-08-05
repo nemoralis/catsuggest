@@ -15,9 +15,8 @@ global.mw = {
 	log: { warn: () => {}, debug: () => {} },
 };
 
-const { buildParentCatsSuggestions, buildExistingRemovals, buildMembersSuggestions } = await import(
-	'../src/suggestions.js'
-);
+const { buildParentCatsSuggestions, buildExistingRemovals, buildMembersSuggestions } =
+	await import('../src/suggestions.js');
 
 describe('buildParentCatsSuggestions', () => {
 	beforeEach(() => {
@@ -160,9 +159,7 @@ describe('buildParentCatsSuggestions', () => {
 			return { query: { pages: {} } };
 		});
 
-		const rawResults = [
-			{ title: 'Kateqoriya:Şotlandiya filosofları', sources: ['en'] },
-		];
+		const rawResults = [{ title: 'Kateqoriya:Şotlandiya filosofları', sources: ['en'] }];
 		const currentCats = ['Kateqoriya:Britaniya filosofları'];
 		const { suggestions } = await buildParentCatsSuggestions(rawResults, currentCats, {
 			get: mockGet,
@@ -178,18 +175,11 @@ describe('buildExistingRemovals', () => {
 	it('should use shared parentMap and skip API calls', async () => {
 		const mockGet = vi.fn();
 		const parentMap = new Map();
-		parentMap.set('Kateqoriya:Şotlandiya filosofları', [
-			'Kateqoriya:Britaniya filosofları',
-		]);
-		parentMap.set('Kateqoriya:Britaniya filosofları', [
-			'Kateqoriya:Britaniya şəxsləri',
-		]);
+		parentMap.set('Kateqoriya:Şotlandiya filosofları', ['Kateqoriya:Britaniya filosofları']);
+		parentMap.set('Kateqoriya:Britaniya filosofları', ['Kateqoriya:Britaniya şəxsləri']);
 
 		const removals = await buildExistingRemovals(
-			[
-				'Kateqoriya:Şotlandiya filosofları',
-				'Kateqoriya:Britaniya filosofları',
-			],
+			['Kateqoriya:Şotlandiya filosofları', 'Kateqoriya:Britaniya filosofları'],
 			{ get: mockGet },
 			new Set(),
 			parentMap
@@ -232,9 +222,7 @@ describe('buildExistingRemovals', () => {
 				pages: {
 					1: {
 						title: 'Kateqoriya:ABŞ-nin dram filmləri',
-						categories: [
-							{ title: 'Kateqoriya:Janrlarına görə ABŞ filmləri' },
-						],
+						categories: [{ title: 'Kateqoriya:Janrlarına görə ABŞ filmləri' }],
 					},
 					2: {
 						title: 'Kateqoriya:Janrlarına görə ABŞ filmləri',
@@ -245,10 +233,7 @@ describe('buildExistingRemovals', () => {
 		}));
 
 		const removals = await buildExistingRemovals(
-			[
-				'Kateqoriya:ABŞ filmləri',
-				'Kateqoriya:ABŞ-nin dram filmləri',
-			],
+			['Kateqoriya:ABŞ filmləri', 'Kateqoriya:ABŞ-nin dram filmləri'],
 			{ get: mockGet }
 		);
 		expect(removals).toHaveLength(1);
@@ -267,6 +252,101 @@ describe('buildExistingRemovals', () => {
 			{ get: mockGet }
 		);
 		expect(removals).toHaveLength(0);
+	});
+
+	it('should not suggest removing the page own category under a plural form', async () => {
+		const mockGet = vi.fn(async () => ({
+			query: {
+				pages: {
+					1: {
+						title: 'Kateqoriya:Uşaq oyuncaqları',
+						categories: [{ title: 'Kateqoriya:Oyuncaqlar' }],
+					},
+					2: {
+						title: 'Kateqoriya:Oyuncaqlar',
+						categories: [],
+					},
+				},
+			},
+		}));
+
+		const removals = await buildExistingRemovals(
+			['Kateqoriya:Oyuncaqlar', 'Kateqoriya:Uşaq oyuncaqları'],
+			{ get: mockGet },
+			new Set(),
+			null,
+			'Oyuncaq'
+		);
+		expect(removals).toHaveLength(0);
+	});
+
+	it('should ignore ancestor chains that loop through a category-graph cycle', async () => {
+		const parentMap = new Map([
+			['Kateqoriya:Fəlsəfə', ['Kateqoriya:Abstraksiya']],
+			['Kateqoriya:Alimlər', ['Kateqoriya:Elm']],
+			['Kateqoriya:Fəlsəfə tarixi', ['Kateqoriya:Fəlsəfə']],
+			['Kateqoriya:Elm', ['Kateqoriya:Bilik']],
+			// Cycle: Fəlsəfə -> Abstraksiya -> Anlayışlar -> Bilik -> Təfəkkür -> Fəlsəfə
+			['Kateqoriya:Bilik', ['Kateqoriya:Təfəkkür', 'Kateqoriya:Anlayışlar']],
+			['Kateqoriya:Təfəkkür', ['Kateqoriya:Fəlsəfə']],
+			['Kateqoriya:Abstraksiya', ['Kateqoriya:Anlayışlar']],
+			['Kateqoriya:Anlayışlar', ['Kateqoriya:Bilik']],
+			// Legit chain (off-page intermediate) unaffected by the cycle
+			['Kateqoriya:Antik dövr filosofları', ['Kateqoriya:Antik fəlsəfə']],
+			['Kateqoriya:Antik fəlsəfə', ['Kateqoriya:Fəlsəfə']],
+		]);
+		const mockGet = vi.fn();
+
+		const removals = await buildExistingRemovals(
+			[
+				'Kateqoriya:Fəlsəfə',
+				'Kateqoriya:Alimlər',
+				'Kateqoriya:Fəlsəfə tarixi',
+				'Kateqoriya:Antik dövr filosofları',
+			],
+			{ get: mockGet },
+			new Set(),
+			parentMap
+		);
+
+		expect(removals).toHaveLength(1);
+		expect(removals[0].title).toBe('Kateqoriya:Fəlsəfə');
+
+		const collect = (nodes) => nodes.flatMap((n) => [n.title, ...collect(n.children || [])]);
+		const treeTitles = collect(removals[0].tree);
+		expect(treeTitles).toContain('Kateqoriya:Fəlsəfə tarixi');
+		expect(treeTitles).toContain('Kateqoriya:Antik dövr filosofları');
+		expect(treeTitles).not.toContain('Kateqoriya:Alimlər');
+	});
+
+	it("should keep a descendant's tree attached when its closest on-page ancestor is outside the candidate's subtree", async () => {
+		const parentMap = new Map([
+			// Müsəlman teoloqlar descends from BOTH Din and Fəlsəfə, but its
+			// closest on-page ancestor is Din (unrelated to Fəlsəfə).
+			['Kateqoriya:Müsəlman teoloqlar', ['Kateqoriya:Dinlərinə görə teoloqlar']],
+			['Kateqoriya:Dinlərinə görə teoloqlar', ['Kateqoriya:Din', 'Kateqoriya:Teoloqlar']],
+			['Kateqoriya:Teoloqlar', ['Kateqoriya:Dinşünaslıq']],
+			['Kateqoriya:Dinşünaslıq', ['Kateqoriya:Fəlsəfə']],
+			['Kateqoriya:Din', []],
+			['Kateqoriya:Fəlsəfə', []],
+		]);
+		const mockGet = vi.fn();
+
+		const removals = await buildExistingRemovals(
+			['Kateqoriya:Din', 'Kateqoriya:Fəlsəfə', 'Kateqoriya:Müsəlman teoloqlar'],
+			{ get: mockGet },
+			new Set(),
+			parentMap
+		);
+
+		const felsefe = removals.find((r) => r.title === 'Kateqoriya:Fəlsəfə');
+		expect(felsefe).toBeDefined();
+		expect(felsefe.tree).toHaveLength(1);
+		expect(felsefe.tree[0].title).toBe('Kateqoriya:Müsəlman teoloqlar');
+
+		const din = removals.find((r) => r.title === 'Kateqoriya:Din');
+		expect(din).toBeDefined();
+		expect(din.tree[0].title).toBe('Kateqoriya:Müsəlman teoloqlar');
 	});
 });
 
@@ -292,9 +372,7 @@ describe('buildMembersSuggestions', () => {
 						pages: {
 							2: {
 								title: 'Kateqoriya:İnsan nəslinin kəsilməsi',
-								categories: [
-									{ title: 'Kateqoriya:Ekzistensial risk' },
-								],
+								categories: [{ title: 'Kateqoriya:Ekzistensial risk' }],
 							},
 						},
 					},

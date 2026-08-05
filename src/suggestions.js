@@ -9,6 +9,7 @@ const {
 	EXCLUDED_KEYWORD_ALLOW_PATTERNS,
 	EXCLUDED_TITLES,
 	REMOVAL_EXCLUDED_KEYWORDS,
+	isSameCategoryIgnoringPlural,
 	ALLOWED_NAMESPACES,
 	ANCESTOR_CHECK_DEPTH,
 	log,
@@ -326,7 +327,7 @@ async function buildParentCatsSuggestions(
 			if (
 				currentCatsSet.has(p) &&
 				!templateAddedCats.has(p) &&
-				p !== pageCategoryName &&
+				!isSameCategoryIgnoringPlural(p, pageCategoryName) &&
 				!isRemovalExcluded(p)
 			) {
 				s.removals.push({ title: p, selected: false });
@@ -390,27 +391,58 @@ async function buildExistingRemovals(
 		if (!parentMap.has(t)) parentMap.set(t, []);
 	});
 
-	// Build a reverse map: category → its direct children that are also on the page.
-	const childMap = new Map();
-	currentCats.forEach((cat) => childMap.set(cat, []));
-	currentCats.forEach((cat) => {
-		const parents = parentMap.get(cat) || [];
-		parents.forEach((p) => {
-			if (currentCatsSet.has(p)) {
-				childMap.get(p).push(cat);
-			}
-		});
-	});
-
 	// Walk up the ancestor chain (up to ANCESTOR_CHECK_DEPTH) for each category to find
 	// all on-page ancestors. This detects transitive parent-child relationships even when
 	// intermediate categories are not on the page (e.g., grandparent without parent on page).
+	//
+	// Wiki category graphs are not always trees: cycles like
+	// "Fəlsəfə → Abstraksiya → Anlayışlar → Bilik → Təfəkkür → Fəlsəfə" make two categories
+	// mutual ancestors. A chain that loops through such a cycle is semantically unreliable,
+	// so it is not used to justify a removal.
 	const descendantMap = new Map();
 	currentCats.forEach((cat) => descendantMap.set(cat, new Set()));
 
+	// Returns true if `target` is reachable from `node` by walking up through parentMap
+	// within ANCESTOR_CHECK_DEPTH, i.e. `target` is an ancestor of `node`. Memoized.
+	const isAncestorOfCache = new Map();
+	const isAncestorOf = (target, node) => {
+		const cacheKey = target + '\0' + node;
+		if (isAncestorOfCache.has(cacheKey)) {
+			return isAncestorOfCache.get(cacheKey);
+		}
+		const visited = new Set();
+		const queue = [...(parentMap.get(node) || [])];
+		const depths = queue.map(() => 0);
+		let result = false;
+		while (queue.length > 0) {
+			const p = queue.shift();
+			const pDepth = depths.shift();
+			if (visited.has(p)) {
+				continue;
+			}
+			visited.add(p);
+			if (p === target) {
+				result = true;
+				break;
+			}
+			if (pDepth < ANCESTOR_CHECK_DEPTH) {
+				(parentMap.get(p) || []).forEach((gp) => {
+					if (!visited.has(gp)) {
+						queue.push(gp);
+						depths.push(pDepth + 1);
+					}
+				});
+			}
+		}
+		isAncestorOfCache.set(cacheKey, result);
+		return result;
+	};
+
 	currentCats.forEach((cat) => {
 		const visited = new Set([cat]);
+		const pred = new Map();
 		const queue = [...(parentMap.get(cat) || [])];
+		queue.forEach((p) => pred.set(p, cat));
 		const depths = queue.map(() => 0);
 		while (queue.length > 0) {
 			const node = queue.shift();
@@ -420,12 +452,24 @@ async function buildExistingRemovals(
 			}
 			visited.add(node);
 			if (currentCatsSet.has(node) && node !== cat) {
-				descendantMap.get(node).add(cat);
+				const chain = [node];
+				let cur = node;
+				while (pred.has(cur)) {
+					cur = pred.get(cur);
+					chain.unshift(cur);
+				}
+				// An intermediate node that is itself an ancestor of the found node means
+				// the chain loops through a cycle in the category graph — reject it.
+				const cyclic = chain.slice(1, -1).some((p) => isAncestorOf(p, node));
+				if (!cyclic) {
+					descendantMap.get(node).add(cat);
+				}
 			}
 			if (nodeDepth < ANCESTOR_CHECK_DEPTH) {
 				const parents = parentMap.get(node) || [];
 				parents.forEach((p) => {
-					if (!visited.has(p)) {
+					if (!visited.has(p) && !pred.has(p)) {
+						pred.set(p, node);
 						queue.push(p);
 						depths.push(nodeDepth + 1);
 					}
@@ -435,10 +479,14 @@ async function buildExistingRemovals(
 	});
 
 	// Walk up from a node through parentMap to find the closest on-page category
-	// (or the candidate itself) — handles missing intermediate categories.
+	// (or the candidate itself) that is part of the candidate's own subtree —
+	// handles missing intermediate categories. Stopping at an on-page category
+	// outside the candidate's descendant set would leave that node disconnected
+	// from the tree (which is rooted at the candidate).
 	// Depth-limited by ANCESTOR_CHECK_DEPTH and memoized to avoid redundant BFS.
+	// The memo key is valid because each candidate has exactly one descendant set.
 	const findTreeParentCache = new Map();
-	const findTreeParent = (node, candidate) => {
+	const findTreeParent = (node, candidate, descendantSet) => {
 		const cacheKey = node + '\0' + candidate;
 		if (findTreeParentCache.has(cacheKey)) {
 			return findTreeParentCache.get(cacheKey);
@@ -454,7 +502,7 @@ async function buildExistingRemovals(
 				continue;
 			}
 			visited.add(p);
-			if (p === candidate || currentCatsSet.has(p)) {
+			if (p === candidate || (currentCatsSet.has(p) && descendantSet.has(p))) {
 				result = p;
 				break;
 			}
@@ -477,7 +525,7 @@ async function buildExistingRemovals(
 		const treeMap = new Map();
 		treeMap.set(ancestorTitle, []);
 		descendantSet.forEach((d) => {
-			const parentInTree = findTreeParent(d, ancestorTitle);
+			const parentInTree = findTreeParent(d, ancestorTitle, descendantSet);
 			if (parentInTree && !treeMap.has(parentInTree)) {
 				treeMap.set(parentInTree, []);
 			}
@@ -500,7 +548,7 @@ async function buildExistingRemovals(
 		if (templateAddedCats.has(cat)) {
 			return;
 		}
-		if (pageCategoryName && cat === pageCategoryName) {
+		if (pageCategoryName && isSameCategoryIgnoringPlural(cat, pageCategoryName)) {
 			return;
 		}
 		if (isRemovalExcluded(cat)) {

@@ -44,7 +44,7 @@ const EXCLUDED_TITLES = new Set(cfg.excludedTitles);
 const REMOVAL_EXCLUDED_KEYWORDS = cfg.removalExcludedKeywords || [];
 const LARGE_WIKI_SITES = new Set(cfg.largeWikiSites);
 
-const log = DEBUG ? (...args) => console.log('[CatSuggest]', ...args) : () => {}; // eslint-disable-line no-console
+const log = DEBUG ? (...args) => console.log('[catsuggest]', ...args) : () => {}; // eslint-disable-line no-console
 
 function escapeRegex(str) {
 	return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -66,6 +66,23 @@ function debounce(fn, delay) {
 
 function generateBatchId() {
 	return Math.random().toString(16).slice(2, 10) + Math.random().toString(16).slice(2, 10);
+}
+
+const AZ_PLURAL_SUFFIXES = ['lar', 'lər'];
+
+/**
+ * Check whether two category titles are the same category, treating singular/plural
+ * forms as equivalent (e.g. "Kateqoriya:Oyuncaq" vs "Kateqoriya:Oyuncaqlar").
+ *
+ * @param {string} a
+ * @param {string} b
+ * @return {boolean}
+ */
+function isSameCategoryIgnoringPlural(a, b) {
+	if (a === b) {
+		return true;
+	}
+	return AZ_PLURAL_SUFFIXES.some((suffix) => a === b + suffix || b === a + suffix);
 }
 
 module.exports = {
@@ -108,6 +125,7 @@ module.exports = {
 	EXCLUDED_KEYWORD_ALLOW_PATTERNS,
 	EXCLUDED_TITLES,
 	REMOVAL_EXCLUDED_KEYWORDS,
+	isSameCategoryIgnoringPlural,
 	LARGE_WIKI_SITES,
 	log,
 	escapeRegex,
