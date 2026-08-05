@@ -111,6 +111,7 @@
 
 						<div v-if="showSearch" class="catsuggest-search">
 							<cdx-text-input
+							    :start-icon="icons.search"
 								:model-value="siteFilter"
 								@update:model-value="
 									(val) => {
@@ -546,7 +547,7 @@ const {
 	detectTemplateAddedCategories,
 } = require('./suggestions.js');
 const { addParentCategoriesEdit, addCategoryToMembersEdit } = require('./edit.js');
-const { cdxIconLanguage } = require('../icons.json');
+const { cdxIconLanguage, cdxIconSearch } = require('../icons.json');
 
 const currentPageId = mw.config.get('wgArticleId');
 
@@ -570,7 +571,7 @@ export default {
 			status: 'idle',
 			selectedSuggestions: [],
 			error: null,
-			icons: { language: cdxIconLanguage },
+			icons: { language: cdxIconLanguage, search: cdxIconSearch },
 			sitelinks: [],
 			modeSelectedSites: {
 				members: [],
