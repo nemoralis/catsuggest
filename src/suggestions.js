@@ -241,8 +241,10 @@ async function buildParentCatsSuggestions(
 		const normalizedCurrent = currentPageTitle.replace(/_/g, ' ');
 		const visited = new Set();
 		const queue = [title];
-		while (queue.length > 0) {
-			const node = queue.shift();
+		let qi = 0;
+		while (qi < queue.length) {
+			const node = queue[qi];
+			qi++;
 			if (visited.has(node)) {
 				continue;
 			}
@@ -399,44 +401,16 @@ async function buildExistingRemovals(
 	// "Fəlsəfə → Abstraksiya → Anlayışlar → Bilik → Təfəkkür → Fəlsəfə" make two categories
 	// mutual ancestors. A chain that loops through such a cycle is semantically unreliable,
 	// so it is not used to justify a removal.
+	//
+	// Each per-category BFS result is stored once and reused: `ancestorSets` answers
+	// "is X an ancestor of Y?" in O(1), and `onPageAncestors` records the BFS depth of
+	// every on-page ancestor so removal trees can be built without re-walking the graph.
 	const descendantMap = new Map();
 	currentCats.forEach((cat) => descendantMap.set(cat, new Set()));
 
-	// Returns true if `target` is reachable from `node` by walking up through parentMap
-	// within ANCESTOR_CHECK_DEPTH, i.e. `target` is an ancestor of `node`. Memoized.
-	const isAncestorOfCache = new Map();
-	const isAncestorOf = (target, node) => {
-		const cacheKey = target + '\0' + node;
-		if (isAncestorOfCache.has(cacheKey)) {
-			return isAncestorOfCache.get(cacheKey);
-		}
-		const visited = new Set();
-		const queue = [...(parentMap.get(node) || [])];
-		const depths = queue.map(() => 0);
-		let result = false;
-		while (queue.length > 0) {
-			const p = queue.shift();
-			const pDepth = depths.shift();
-			if (visited.has(p)) {
-				continue;
-			}
-			visited.add(p);
-			if (p === target) {
-				result = true;
-				break;
-			}
-			if (pDepth < ANCESTOR_CHECK_DEPTH) {
-				(parentMap.get(p) || []).forEach((gp) => {
-					if (!visited.has(gp)) {
-						queue.push(gp);
-						depths.push(pDepth + 1);
-					}
-				});
-			}
-		}
-		isAncestorOfCache.set(cacheKey, result);
-		return result;
-	};
+	const ancestorSets = new Map();
+	const onPageAncestors = new Map();
+	const foundChains = new Map();
 
 	currentCats.forEach((cat) => {
 		const visited = new Set([cat]);
@@ -444,9 +418,13 @@ async function buildExistingRemovals(
 		const queue = [...(parentMap.get(cat) || [])];
 		queue.forEach((p) => pred.set(p, cat));
 		const depths = queue.map(() => 0);
-		while (queue.length > 0) {
-			const node = queue.shift();
-			const nodeDepth = depths.shift();
+		const onPage = new Map();
+		const chains = [];
+		let qi = 0;
+		while (qi < queue.length) {
+			const node = queue[qi];
+			const nodeDepth = depths[qi];
+			qi++;
 			if (visited.has(node)) {
 				continue;
 			}
@@ -458,12 +436,8 @@ async function buildExistingRemovals(
 					cur = pred.get(cur);
 					chain.unshift(cur);
 				}
-				// An intermediate node that is itself an ancestor of the found node means
-				// the chain loops through a cycle in the category graph — reject it.
-				const cyclic = chain.slice(1, -1).some((p) => isAncestorOf(p, node));
-				if (!cyclic) {
-					descendantMap.get(node).add(cat);
-				}
+				chains.push({ node, chain });
+				onPage.set(node, nodeDepth);
 			}
 			if (nodeDepth < ANCESTOR_CHECK_DEPTH) {
 				const parents = parentMap.get(node) || [];
@@ -476,48 +450,51 @@ async function buildExistingRemovals(
 				});
 			}
 		}
+		ancestorSets.set(cat, visited);
+		onPageAncestors.set(cat, onPage);
+		foundChains.set(cat, chains);
 	});
 
-	// Walk up from a node through parentMap to find the closest on-page category
-	// (or the candidate itself) that is part of the candidate's own subtree —
-	// handles missing intermediate categories. Stopping at an on-page category
-	// outside the candidate's descendant set would leave that node disconnected
-	// from the tree (which is rooted at the candidate).
-	// Depth-limited by ANCESTOR_CHECK_DEPTH and memoized to avoid redundant BFS.
-	// The memo key is valid because each candidate has exactly one descendant set.
-	const findTreeParentCache = new Map();
+	// A chain element (intermediate or the walk root itself) that is an ancestor of
+	// the found node means the chain loops through a cycle in the category graph —
+	// the two categories are mutual ancestors, so the relationship is unreliable.
+	// Reject the whole chain (including the root: `slice(0, -1)`).
+	currentCats.forEach((cat) => {
+		foundChains.get(cat).forEach(({ node, chain }) => {
+			const cyclic = chain.slice(0, -1).some((p) => ancestorSets.get(node).has(p));
+			if (!cyclic) {
+				descendantMap.get(node).add(cat);
+			}
+		});
+	});
+
+	// Walk up from a node to find the closest on-page category (or the candidate
+	// itself) that is part of the candidate's own subtree — handles missing
+	// intermediate categories. Stopping at an on-page category outside the
+	// candidate's descendant set would leave that node disconnected from the tree
+	// (which is rooted at the candidate). Uses the BFS depths recorded during the
+	// ancestor walk, so no additional graph traversal is required.
 	const findTreeParent = (node, candidate, descendantSet) => {
-		const cacheKey = node + '\0' + candidate;
-		if (findTreeParentCache.has(cacheKey)) {
-			return findTreeParentCache.get(cacheKey);
+		if (!onPageAncestors.has(node)) {
+			return null;
 		}
-		const visited = new Set();
-		const queue = [...(parentMap.get(node) || [])];
-		const depths = queue.map(() => 0);
-		let result = null;
-		while (queue.length > 0) {
-			const p = queue.shift();
-			const pDepth = depths.shift();
-			if (visited.has(p)) {
-				continue;
-			}
-			visited.add(p);
-			if (p === candidate || (currentCatsSet.has(p) && descendantSet.has(p))) {
-				result = p;
-				break;
-			}
-			if (pDepth < ANCESTOR_CHECK_DEPTH) {
-				const grandparents = parentMap.get(p) || [];
-				for (const gp of grandparents) {
-					if (!visited.has(gp)) {
-						queue.push(gp);
-						depths.push(pDepth + 1);
-					}
+		let best = null;
+		let bestDepth = Infinity;
+		onPageAncestors.get(node).forEach((depth, title) => {
+			if (title === candidate || descendantSet.has(title)) {
+				// Two on-page categories can be mutual ancestors (a cycle). Attaching
+				// one under the other would make the tree cyclic (A under B and B under
+				// A), so skip any title whose own ancestor set contains `node`.
+				if (ancestorSets.get(title).has(node)) {
+					return;
+				}
+				if (depth < bestDepth) {
+					bestDepth = depth;
+					best = title;
 				}
 			}
-		}
-		findTreeParentCache.set(cacheKey, result);
-		return result;
+		});
+		return best;
 	};
 
 	// Build a tree using path-finding through parentMap.

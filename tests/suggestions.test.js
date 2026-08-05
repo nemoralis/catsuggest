@@ -348,6 +348,38 @@ describe('buildExistingRemovals', () => {
 		expect(din).toBeDefined();
 		expect(din.tree[0].title).toBe('Kateqoriya:Müsəlman teoloqlar');
 	});
+
+	it('should not hang or build a cyclic tree when two on-page categories are mutual ancestors', async () => {
+		// A and B are mutual ancestors (A -> M -> B and B -> N -> A, a category-graph
+		// cycle), and both are descendants of C. Without cycle guards the tree builder
+		// would attach A under B and B under A, and `toTree` would recurse forever.
+		const parentMap = new Map([
+			['Kateqoriya:A', ['Kateqoriya:M', 'Kateqoriya:P']],
+			['Kateqoriya:M', ['Kateqoriya:B']],
+			['Kateqoriya:P', ['Kateqoriya:C']],
+			['Kateqoriya:B', ['Kateqoriya:N', 'Kateqoriya:Q']],
+			['Kateqoriya:N', ['Kateqoriya:A']],
+			['Kateqoriya:Q', ['Kateqoriya:C']],
+			['Kateqoriya:C', []],
+		]);
+		const mockGet = vi.fn();
+
+		const removals = await buildExistingRemovals(
+			['Kateqoriya:C', 'Kateqoriya:A', 'Kateqoriya:B'],
+			{ get: mockGet },
+			new Set(),
+			parentMap
+		);
+
+		// C is the only viable candidate: A and B are each rejected as descendants
+		// of the other (mutual ancestors are unreliable), but both stay under C.
+		expect(removals).toHaveLength(1);
+		expect(removals[0].title).toBe('Kateqoriya:C');
+
+		const collect = (nodes) => nodes.flatMap((n) => [n.title, ...collect(n.children || [])]);
+		const treeTitles = collect(removals[0].tree);
+		expect(treeTitles.sort()).toEqual(['Kateqoriya:A', 'Kateqoriya:B']);
+	});
 });
 
 describe('buildMembersSuggestions', () => {
