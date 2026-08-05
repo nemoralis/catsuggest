@@ -20,6 +20,8 @@
 				"vue/attributes-order": "off",
 				"vue/attribute-hyphenation": "off",
 				"no-underscore-dangle": "off",
+				"no-unused-vars": "off",
+				"vue/no-unused-vars": "error",
 				"compat/compat": "off"
 			}
 		}

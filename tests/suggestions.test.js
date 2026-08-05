@@ -15,8 +15,13 @@ global.mw = {
 	log: { warn: () => {}, debug: () => {} },
 };
 
-const { buildParentCatsSuggestions, buildExistingRemovals, buildMembersSuggestions } =
-	await import('../src/suggestions.js');
+const {
+	buildParentCatsSuggestions,
+	buildExistingRemovals,
+	buildMembersSuggestions,
+	fetchMembersSuggestions,
+	fetchParentCatsSuggestions,
+} = await import('../src/suggestions.js');
 
 describe('buildParentCatsSuggestions', () => {
 	beforeEach(() => {
@@ -168,6 +173,29 @@ describe('buildParentCatsSuggestions', () => {
 		expect(suggestions[0].removals).toHaveLength(1);
 		expect(suggestions[0].removals[0].title).toBe('Kateqoriya:Britaniya filosofları');
 		expect(suggestions[0].removals[0].selected).toBe(false);
+	});
+
+	it('should propagate redirectNames from redirectResolvedCatToNames', async () => {
+		const mockGet = vi.fn(async () => ({ query: { pages: {} } }));
+
+		const rawResults = [{ title: 'Kateqoriya:Ekzistensial risk', sources: ['en'] }];
+		const redirectResolvedCatToNames = new Map([
+			['Kateqoriya:Ekzistensial risk', [{ lang: 'en', name: 'Category:Redirect parent' }]],
+		]);
+
+		const { suggestions } = await buildParentCatsSuggestions(
+			rawResults,
+			[],
+			{ get: mockGet },
+			'',
+			new Set(),
+			new Map(),
+			redirectResolvedCatToNames
+		);
+
+		expect(suggestions[0].redirectNames).toEqual([
+			{ lang: 'en', name: 'Category:Redirect parent' },
+		]);
 	});
 });
 
@@ -382,6 +410,238 @@ describe('buildExistingRemovals', () => {
 	});
 });
 
+describe('fetchMembersSuggestions', () => {
+	it('should flag members reached via redirect resolution', async () => {
+		const mockGet = vi.fn(async (params) => {
+			expect(params.redirects).toBe(true);
+			return {
+				query: {
+					redirects: [
+						{ from: 'Our name is Armenian Army', to: 'Armed Forces of Armenia' },
+					],
+					pages: {
+						1: {
+							title: 'Armed Forces of Armenia',
+							// Redirect member: resolved via its target's langlink and
+							// therefore flagged in redirectResolvedCatToSites.
+							langlinks: [{ lang: 'az', '*': 'Ermənistan Silahlı Qüvvələri' }],
+						},
+						2: {
+							title: 'Ey Reqîb',
+							langlinks: [{ lang: 'az', '*': 'Ey Reqib' }],
+						},
+					},
+				},
+			};
+		});
+
+		const globalCatToSites = new Map();
+		const redirectResolvedCatToSites = new Map();
+		await fetchMembersSuggestions(
+			{ get: mockGet },
+			{ title: 'Category:Patriotic songs', site: 'enwiki' },
+			'en',
+			globalCatToSites,
+			'Q7214468',
+			redirectResolvedCatToSites
+		);
+
+		const entries = Array.from(globalCatToSites.entries()).map(([t, s]) => [t, Array.from(s)]);
+		expect(entries).toEqual([
+			['Ermənistan Silahlı Qüvvələri', ['en']],
+			['Ey Reqib', ['en']],
+		]);
+		expect(
+			Array.from(redirectResolvedCatToSites.entries()).map(([t, s]) => [t, Array.from(s)])
+		).toEqual([['Ermənistan Silahlı Qüvvələri', ['en']]]);
+	});
+
+	it('should record redirect names from API redirects', async () => {
+		const mockGet = vi.fn(async () => ({
+			query: {
+				redirects: [
+					{ from: 'Our name is Armenian Army', to: 'Armed Forces of Armenia' },
+					{ from: 'Second redirect', to: 'Armed Forces of Armenia' },
+				],
+				pages: {
+					1: {
+						title: 'Armed Forces of Armenia',
+						langlinks: [{ lang: 'az', '*': 'Ermənistan Silahlı Qüvvələri' }],
+					},
+				},
+			},
+		}));
+
+		const globalCatToSites = new Map();
+		const redirectResolvedCatToNames = new Map();
+		await fetchMembersSuggestions(
+			{ get: mockGet },
+			{ title: 'Category:Patriotic songs', site: 'enwiki' },
+			'en',
+			globalCatToSites,
+			'Q7214468',
+			new Map(),
+			redirectResolvedCatToNames
+		);
+
+		expect(Array.from(redirectResolvedCatToNames.entries())).toEqual([
+			[
+				'Ermənistan Silahlı Qüvvələri',
+				[
+					{ lang: 'en', name: 'Our name is Armenian Army' },
+					{ lang: 'en', name: 'Second redirect' },
+				],
+			],
+		]);
+	});
+
+	it('should restore redirect names from cache entries and tolerate legacy formats', async () => {
+		global.mw.storage.get = vi.fn((key) => {
+			if (key === 'catsuggest-members-cache-Q7214468-enwiki') {
+				return JSON.stringify([
+					{
+						t: 'Ermənistan Silahlı Qüvvələri',
+						r: true,
+						n: ['Our name is Armenian Army'],
+					},
+					{ t: 'Ey Reqib', r: false },
+					'Kateqoriya:Ölkələrinə görə himnlər',
+				]);
+			}
+			return null;
+		});
+		const mockGet = vi.fn(async () => ({ query: { pages: {} } }));
+
+		const globalCatToSites = new Map();
+		const redirectResolvedCatToSites = new Map();
+		const redirectResolvedCatToNames = new Map();
+		await fetchMembersSuggestions(
+			{ get: mockGet },
+			{ title: 'Category:Patriotic songs', site: 'enwiki' },
+			'en',
+			globalCatToSites,
+			'Q7214468',
+			redirectResolvedCatToSites,
+			redirectResolvedCatToNames
+		);
+
+		expect(mockGet).not.toHaveBeenCalled();
+		expect(Array.from(redirectResolvedCatToSites.keys())).toEqual([
+			'Ermənistan Silahlı Qüvvələri',
+		]);
+		expect(Array.from(redirectResolvedCatToNames.entries())).toEqual([
+			['Ermənistan Silahlı Qüvvələri', [{ lang: 'en', name: 'Our name is Armenian Army' }]],
+		]);
+		expect(globalCatToSites.has('Kateqoriya:Ölkələrinə görə himnlər')).toBe(true);
+	});
+
+	it('should restore redirect flags from cache entries and ignore legacy bare strings', async () => {
+		global.mw.storage.get = vi.fn((key) => {
+			if (key === 'catsuggest-members-cache-Q7214468-enwiki') {
+				return JSON.stringify([
+					{ t: 'Ermənistan Silahlı Qüvvələri', r: true },
+					{ t: 'Ey Reqib', r: false },
+					'Kateqoriya:Ölkələrinə görə himnlər',
+				]);
+			}
+			return null;
+		});
+		const mockGet = vi.fn(async () => ({ query: { pages: {} } }));
+
+		const globalCatToSites = new Map();
+		const redirectResolvedCatToSites = new Map();
+		await fetchMembersSuggestions(
+			{ get: mockGet },
+			{ title: 'Category:Patriotic songs', site: 'enwiki' },
+			'en',
+			globalCatToSites,
+			'Q7214468',
+			redirectResolvedCatToSites
+		);
+
+		expect(mockGet).not.toHaveBeenCalled();
+		expect(Array.from(redirectResolvedCatToSites.keys())).toEqual([
+			'Ermənistan Silahlı Qüvvələri',
+		]);
+		expect(globalCatToSites.has('Kateqoriya:Ölkələrinə görə himnlər')).toBe(true);
+	});
+});
+
+describe('fetchParentCatsSuggestions', () => {
+	it('should flag parent categories reached via redirect resolution', async () => {
+		const mockGet = vi.fn(async (params) => {
+			expect(params.redirects).toBe(true);
+			return {
+				query: {
+					redirects: [
+						{ from: 'Category:Redirect parent', to: 'Category:Patriotic music' },
+					],
+					pages: {
+						1: {
+							title: 'Category:Patriotic music',
+							langlinks: [{ lang: 'az', '*': 'Kateqoriya:Vətənpərvər musiqisi' }],
+						},
+						2: {
+							title: 'Category:Plain parent',
+							langlinks: [{ lang: 'az', '*': 'Kateqoriya:Sadə valideyn' }],
+						},
+					},
+				},
+			};
+		});
+
+		const globalCatToSites = new Map();
+		const redirectResolvedCatToSites = new Map();
+		await fetchParentCatsSuggestions(
+			{ get: mockGet },
+			{ title: 'Category:Patriotic songs', site: 'enwiki' },
+			'en',
+			globalCatToSites,
+			'Q7214468',
+			redirectResolvedCatToSites
+		);
+
+		const entries = Array.from(globalCatToSites.entries()).map(([t, s]) => [t, Array.from(s)]);
+		expect(entries).toEqual([
+			['Kateqoriya:Vətənpərvər musiqisi', ['en']],
+			['Kateqoriya:Sadə valideyn', ['en']],
+		]);
+		expect(Array.from(redirectResolvedCatToSites.keys())).toEqual([
+			'Kateqoriya:Vətənpərvər musiqisi',
+		]);
+	});
+
+	it('should record redirect names from API redirects', async () => {
+		const mockGet = vi.fn(async () => ({
+			query: {
+				redirects: [{ from: 'Category:Redirect parent', to: 'Category:Patriotic music' }],
+				pages: {
+					1: {
+						title: 'Category:Patriotic music',
+						langlinks: [{ lang: 'az', '*': 'Kateqoriya:Vətənpərvər musiqisi' }],
+					},
+				},
+			},
+		}));
+
+		const globalCatToSites = new Map();
+		const redirectResolvedCatToNames = new Map();
+		await fetchParentCatsSuggestions(
+			{ get: mockGet },
+			{ title: 'Category:Patriotic songs', site: 'enwiki' },
+			'en',
+			globalCatToSites,
+			'Q7214468',
+			new Map(),
+			redirectResolvedCatToNames
+		);
+
+		expect(Array.from(redirectResolvedCatToNames.entries())).toEqual([
+			['Kateqoriya:Vətənpərvər musiqisi', [{ lang: 'en', name: 'Category:Redirect parent' }]],
+		]);
+	});
+});
+
 describe('buildMembersSuggestions', () => {
 	it('should filter out parent categories of the current page', async () => {
 		const mockGet = vi.fn(async (params) => {
@@ -432,5 +692,53 @@ describe('buildMembersSuggestions', () => {
 		const titles = suggestions.map((s) => s.title);
 		expect(titles).not.toContain('Kateqoriya:Ekzistensial risk');
 		expect(titles).toContain('Kateqoriya:İnsan nəslinin kəsilməsi');
+	});
+
+	it('should propagate redirectSites from redirectResolvedCatToSites', async () => {
+		const mockGet = vi.fn(async () => ({ query: { pages: {} } }));
+
+		const rawResults = [{ title: 'Kateqoriya:Ekzistensial risk', sources: ['en', 'ru'] }];
+		const redirectResolvedCatToSites = new Map([
+			['Kateqoriya:Ekzistensial risk', new Set(['en'])],
+		]);
+
+		const suggestions = await buildMembersSuggestions(
+			rawResults,
+			{ members: new Set(), subcats: new Set() },
+			{ get: mockGet },
+			new Set(),
+			redirectResolvedCatToSites
+		);
+
+		expect(suggestions[0].redirectSites).toEqual(['en']);
+	});
+
+	it('should propagate redirectNames from redirectResolvedCatToNames', async () => {
+		const mockGet = vi.fn(async () => ({ query: { pages: {} } }));
+
+		const rawResults = [{ title: 'Kateqoriya:Ekzistensial risk', sources: ['en', 'ru'] }];
+		const redirectResolvedCatToNames = new Map([
+			[
+				'Kateqoriya:Ekzistensial risk',
+				[
+					{ lang: 'en', name: 'Redirect member' },
+					{ lang: 'ru', name: 'Redirect üzvü' },
+				],
+			],
+		]);
+
+		const suggestions = await buildMembersSuggestions(
+			rawResults,
+			{ members: new Set(), subcats: new Set() },
+			{ get: mockGet },
+			new Set(),
+			new Map(),
+			redirectResolvedCatToNames
+		);
+
+		expect(suggestions[0].redirectNames).toEqual([
+			{ lang: 'en', name: 'Redirect member' },
+			{ lang: 'ru', name: 'Redirect üzvü' },
+		]);
 	});
 });

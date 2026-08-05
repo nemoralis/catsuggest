@@ -48,14 +48,38 @@
 .catsuggest-suggestion {
 	margin-bottom: 4px;
 }
+.catsuggest-suggestion__row {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+}
+.catsuggest-suggestion__row > .cdx-checkbox {
+	width: fit-content;
+	margin-bottom: 0;
+}
 .catsuggest-suggestion__link {
 	color: var(--color-progressive, #36c);
 	text-decoration: none;
 }
 .catsuggest-suggestion__sources {
-	font-size: 0.8em;
-	color: var(--color-subtle, #72777d);
+	display: inline-flex;
+	gap: 4px;
+	flex-wrap: wrap;
+	vertical-align: middle;
 	margin-left: 4px;
+}
+.catsuggest-suggestion__sources .cdx-info-chip {
+	padding: 0 4px;
+	line-height: 1rem;
+}
+.catsuggest-suggestion__sources .cdx-info-chip .cdx-icon {
+	min-width: 0;
+	min-height: 0;
+	width: var(--font-size-small, 0.875rem);
+	height: var(--font-size-small, 0.875rem);
+}
+.catsuggest-suggestion__row .cdx-tooltip {
+	white-space: pre-line;
 }
 .catsuggest-section-heading {
 	margin: 8px 0 4px 0;

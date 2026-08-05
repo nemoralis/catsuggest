@@ -212,21 +212,29 @@
 											:key="item.title"
 											class="catsuggest-suggestion"
 										>
-											<cdx-checkbox v-model="item.selected">
-												<a
-													:href="getPageUrl(item.title)"
-													target="_blank"
-													class="catsuggest-suggestion__link"
-													@click.stop
-													>{{ item.title }}</a
-												>
+											<div class="catsuggest-suggestion__row">
+												<cdx-checkbox v-model="item.selected">
+													<a
+														:href="getPageUrl(item.title)"
+														target="_blank"
+														class="catsuggest-suggestion__link"
+														@click.stop
+														>{{ item.title }}</a
+													>
+												</cdx-checkbox>
 												<span
 													v-if="item.sources && item.sources.length"
 													class="catsuggest-suggestion__sources"
+													v-tooltip:bottom="redirectTooltip(item)"
 												>
-													[{{ item.sources.join(', ') }}]
+													<cdx-info-chip
+														:icon="icons.language"
+														:status="sourcesStatus(item)"
+													>
+														{{ item.sources.join(', ') }}
+													</cdx-info-chip>
 												</span>
-											</cdx-checkbox>
+											</div>
 										</div>
 									</cdx-accordion>
 								</div>
@@ -242,21 +250,29 @@
 											:key="item.title"
 											class="catsuggest-suggestion"
 										>
-											<cdx-checkbox v-model="item.selected">
-												<a
-													:href="getPageUrl(item.title)"
-													target="_blank"
-													class="catsuggest-suggestion__link"
-													@click.stop
-													>{{ item.title }}</a
-												>
+											<div class="catsuggest-suggestion__row">
+												<cdx-checkbox v-model="item.selected">
+													<a
+														:href="getPageUrl(item.title)"
+														target="_blank"
+														class="catsuggest-suggestion__link"
+														@click.stop
+														>{{ item.title }}</a
+													>
+												</cdx-checkbox>
 												<span
 													v-if="item.sources && item.sources.length"
 													class="catsuggest-suggestion__sources"
+													v-tooltip:bottom="redirectTooltip(item)"
 												>
-													[{{ item.sources.join(', ') }}]
+													<cdx-info-chip
+														:icon="icons.language"
+														:status="sourcesStatus(item)"
+													>
+														{{ item.sources.join(', ') }}
+													</cdx-info-chip>
 												</span>
-											</cdx-checkbox>
+											</div>
 										</div>
 									</cdx-accordion>
 								</div>
@@ -275,21 +291,29 @@
 										:key="cat.title"
 										class="catsuggest-suggestion"
 									>
-										<cdx-checkbox v-model="cat.selected">
-											<a
-												:href="getPageUrl(cat.title)"
-												target="_blank"
-												class="catsuggest-suggestion__link"
-												@click.stop
-												>{{ cat.title }}</a
-											>
+										<div class="catsuggest-suggestion__row">
+											<cdx-checkbox v-model="cat.selected">
+												<a
+													:href="getPageUrl(cat.title)"
+													target="_blank"
+													class="catsuggest-suggestion__link"
+													@click.stop
+													>{{ cat.title }}</a
+												>
+											</cdx-checkbox>
 											<span
 												v-if="cat.sources && cat.sources.length"
 												class="catsuggest-suggestion__sources"
+												v-tooltip:bottom="redirectTooltip(cat)"
 											>
-												[{{ cat.sources.join(', ') }}]
+												<cdx-info-chip
+													:icon="icons.language"
+													:status="sourcesStatus(cat)"
+												>
+													{{ cat.sources.join(', ') }}
+												</cdx-info-chip>
 											</span>
-										</cdx-checkbox>
+										</div>
 										<div
 											v-if="cat.removals && cat.removals.length > 0"
 											style="margin: 4px 0 8px 28px"
@@ -522,6 +546,7 @@ const {
 	detectTemplateAddedCategories,
 } = require('./suggestions.js');
 const { addParentCategoriesEdit, addCategoryToMembersEdit } = require('./edit.js');
+const { cdxIconLanguage } = require('../icons.json');
 
 const currentPageId = mw.config.get('wgArticleId');
 
@@ -545,6 +570,7 @@ export default {
 			status: 'idle',
 			selectedSuggestions: [],
 			error: null,
+			icons: { language: cdxIconLanguage },
 			sitelinks: [],
 			modeSelectedSites: {
 				members: [],
@@ -960,6 +986,8 @@ export default {
 			this.appliedSites = [];
 
 			const globalCatToSites = new Map();
+			const redirectResolvedCatToSites = new Map();
+			const redirectResolvedCatToNames = new Map();
 
 			try {
 				const sitesToProcess = this.selectedSites.slice();
@@ -990,7 +1018,9 @@ export default {
 							siteData,
 							lang,
 							globalCatToSites,
-							this.qid
+							this.qid,
+							redirectResolvedCatToSites,
+							redirectResolvedCatToNames
 						);
 					} else {
 						await fetchMembersSuggestions(
@@ -998,7 +1028,9 @@ export default {
 							siteData,
 							lang,
 							globalCatToSites,
-							this.qid
+							this.qid,
+							redirectResolvedCatToSites,
+							redirectResolvedCatToNames
 						);
 					}
 				};
@@ -1033,6 +1065,7 @@ export default {
 					([title, sitesSet]) => ({
 						title,
 						sources: Array.from(sitesSet),
+						redirectSites: Array.from(redirectResolvedCatToSites.get(title) || []),
 					})
 				);
 
@@ -1055,7 +1088,9 @@ export default {
 						localData,
 						this.api,
 						mw.config.get('wgPageName').replace(/_/g, ' '),
-						templateAddedCats
+						templateAddedCats,
+						redirectResolvedCatToSites,
+						redirectResolvedCatToNames
 					);
 					this.suggestions = suggestions;
 					this.existingRemovals = await buildExistingRemovals(
@@ -1074,7 +1109,9 @@ export default {
 						resolvedResults,
 						localData,
 						this.api,
-						new Set(currentPageCats)
+						new Set(currentPageCats),
+						redirectResolvedCatToSites,
+						redirectResolvedCatToNames
 					);
 				}
 
@@ -1240,6 +1277,23 @@ export default {
 
 		getPageUrl(title) {
 			return mw.util.getUrl(title);
+		},
+
+		sourcesStatus(item) {
+			return (item.redirectSites || []).some((lang) => item.sources.includes(lang))
+				? 'warning'
+				: 'progressive';
+		},
+
+		redirectTooltip(item) {
+			const pairs = item.redirectNames || [];
+			if (!(item.redirectSites || []).length || pairs.length === 0) {
+				return null;
+			}
+			return (
+				'Y\u00f6nl\u0259ndirm\u0259y\u0259 g\u00f6r\u0259:\n' +
+				pairs.map((p) => p.lang + ' \u2192 ' + p.name).join('\n')
+			);
 		},
 
 		getForeignPageUrl(site, title) {

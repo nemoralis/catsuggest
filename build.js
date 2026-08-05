@@ -20,10 +20,18 @@ function externalizeJsonPlugin() {
 				build.onResolve( { filter: /catsuggest-config\.json$/ }, ( args ) => ({
 					path: path.resolve( __dirname, 'src', 'catsuggest-config.json' )
 				}) );
+				// Dev: resolve the virtual icons.json to the codex-icons package so
+				// icon paths are bundled from node_modules
+				build.onResolve( { filter: /icons\.json$/ }, () => ({
+					path: require.resolve( '@wikimedia/codex-icons' )
+				}) );
 			} else {
 				// Prod: externalize for MediaWiki gadget packaging system
 				build.onResolve( { filter: /catsuggest-check\.json$/ }, ( args ) => ({ path: args.path, external: true }) );
 				build.onResolve( { filter: /catsuggest-config\.json$/ }, ( args ) => ({ path: args.path, external: true }) );
+				// Prod: keep the require('../icons.json') so MediaWiki serves the
+				// virtual file at runtime
+				build.onResolve( { filter: /icons\.json$/ }, ( args ) => ({ path: args.path, external: true }) );
 			}
 		}
 	};
@@ -101,7 +109,12 @@ function vueSfcPlugin() {
 					"  'cdx-toggle-switch': codex.CdxToggleSwitch,",
 					"  'cdx-tabs': codex.CdxTabs,",
 					"  'cdx-tab': codex.CdxTab,",
-					"  'cdx-accordion': codex.CdxAccordion",
+					"  'cdx-accordion': codex.CdxAccordion,",
+					"  'cdx-icon': codex.CdxIcon,",
+					"  'cdx-info-chip': codex.CdxInfoChip",
+					'};',
+					'__sfc_main.directives = {',
+					"  'tooltip': codex.CdxTooltip",
 					'};',
 					'__sfc_main.render = render;',
 					'return __sfc_main;',

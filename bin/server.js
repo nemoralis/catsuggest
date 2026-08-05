@@ -2,6 +2,7 @@
  * Starts a local server for development.
  * To use, run "node bin/server.js", then in your wiki common.js add:
  *   mw.loader.load( 'http://localhost:5500/dist/catsuggest.js' );
+ *   mw.loader.load( 'http://localhost:5500/catsuggest.css', 'text/css' );
  */
 /* global process */
 
