@@ -108,6 +108,7 @@ function fetchParentCatsSuggestions(
 		gclshow: '!hidden',
 		prop: 'langlinks',
 		lllang: CURRENT_WIKI.replace('wiki', ''),
+		lllimit: 'max',
 	}).then((catResp) => {
 		const pages = catResp.pages || {};
 		// A page whose title is a redirect-resolution target only appeared because
@@ -235,6 +236,7 @@ function fetchMembersSuggestions(
 		gcmtype: 'page|subcat',
 		prop: 'langlinks',
 		lllang: CURRENT_WIKI.replace('wiki', ''),
+		lllimit: 'max',
 	}).then((memberResp) => {
 		const pages = memberResp.pages || {};
 		const resolvedTargets = new Set((memberResp.redirects || []).map((r) => r.to));

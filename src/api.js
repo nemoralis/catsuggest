@@ -93,6 +93,41 @@ function getErrorMessage(e) {
 	return e.message || String(e);
 }
 
+/**
+ * Merge a page object from a continuation batch into one from an earlier batch.
+ * A page can reappear across continuation responses with different props filled in
+ * (e.g. `langlinks` for the next chunk of pages). Arrays are concatenated and
+ * de-duplicated so prop data from both batches is preserved.
+ *
+ * @param {Object} target - Page object accumulated so far
+ * @param {Object} incoming - Page object from a later batch
+ * @return {void}
+ */
+function mergePageProps(target, incoming) {
+	for (const prop in incoming) {
+		const value = incoming[prop];
+		if (prop === 'pageid' || prop === 'title' || prop === 'ns') {
+			continue;
+		}
+		if (Array.isArray(value)) {
+			const existing = target[prop] || [];
+			const seen = new Set(existing.map((item) => JSON.stringify(item)));
+			value.forEach((item) => {
+				const key = JSON.stringify(item);
+				if (!seen.has(key)) {
+					seen.add(key);
+					existing.push(item);
+				}
+			});
+			target[prop] = existing;
+		} else if (value && typeof value === 'object') {
+			target[prop] = Object.assign({}, target[prop], value);
+		} else {
+			target[prop] = value;
+		}
+	}
+}
+
 async function fetchFullQuery(apiInstance, params) {
 	const result = {};
 	let continueToken;
@@ -115,13 +150,7 @@ async function fetchFullQuery(apiInstance, params) {
 						if (!result[key][subKey]) {
 							result[key][subKey] = resp.query[key][subKey];
 						} else {
-							const existing = result[key][subKey];
-							const incoming = resp.query[key][subKey];
-							if (incoming.categories) {
-								existing.categories = (existing.categories || []).concat(
-									incoming.categories
-								);
-							}
+							mergePageProps(result[key][subKey], resp.query[key][subKey]);
 						}
 					}
 				}
