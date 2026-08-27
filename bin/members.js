@@ -479,7 +479,7 @@ async function main() {
 		.forEach((s) => {
 			const redirectFlag =
 				s.redirectSites.length > 0
-					? '  [foreign-redirect provenance: ' +
+					? '  [redirect provenance: ' +
 						s.redirectNames.map((p) => p.lang + ' -> ' + p.name).join('; ') +
 						']'
 					: '';

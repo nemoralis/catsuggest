@@ -464,12 +464,21 @@ async function buildParentCatsSuggestions(
 			return;
 		}
 		seenTitles.add(resolvedTitle);
+		const azLang = CURRENT_WIKI.replace('wiki', '');
+		const isAzwikiRedirect = resolvedTitle !== r.title;
+		const baseSites = redirectResolvedCatToSites.get(r.title) || [];
+		const baseNames = redirectResolvedCatToNames.get(r.title) || [];
 		suggestions.push({
 			title: resolvedTitle,
 			selected: true,
 			sources: r.sources,
-			redirectSites: Array.from(redirectResolvedCatToSites.get(r.title) || []),
-			redirectNames: collectRedirectNames(redirectResolvedCatToNames.get(r.title)),
+			azRedirectFrom: isAzwikiRedirect ? r.title : undefined,
+			redirectSites: isAzwikiRedirect
+				? Array.from(new Set([...baseSites, azLang]))
+				: Array.from(baseSites),
+			redirectNames: isAzwikiRedirect
+				? collectRedirectNames([...baseNames, { lang: azLang, name: r.title }])
+				: collectRedirectNames(baseNames),
 			removals: [],
 		});
 	});
@@ -825,12 +834,21 @@ async function buildMembersSuggestions(
 		if (itemCats.some((c) => currentSubcatsSet.has(c))) {
 			return;
 		}
+		const azLang = CURRENT_WIKI.replace('wiki', '');
+		const isAzwikiRedirect = resolvedTitle !== item.title;
+		const baseSites = redirectResolvedCatToSites.get(item.title) || [];
+		const baseNames = redirectResolvedCatToNames.get(item.title) || [];
 		suggestions.push({
 			title: resolvedTitle,
 			selected: true,
 			sources: item.sources,
-			redirectSites: Array.from(redirectResolvedCatToSites.get(item.title) || []),
-			redirectNames: collectRedirectNames(redirectResolvedCatToNames.get(item.title)),
+			azRedirectFrom: isAzwikiRedirect ? item.title : undefined,
+			redirectSites: isAzwikiRedirect
+				? Array.from(new Set([...baseSites, azLang]))
+				: Array.from(baseSites),
+			redirectNames: isAzwikiRedirect
+				? collectRedirectNames([...baseNames, { lang: azLang, name: item.title }])
+				: collectRedirectNames(baseNames),
 			isCategory: resolvedTitle.startsWith(CATEGORY_PREFIX),
 		});
 	});

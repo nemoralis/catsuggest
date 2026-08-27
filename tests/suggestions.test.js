@@ -168,7 +168,9 @@ describe('buildParentCatsSuggestions', () => {
 		expect(suggestions[0]).toMatchObject({
 			title: 'Kateqoriya:Şotlandiya filosofları',
 			sources: ['en'],
-			redirectNames: [],
+			azRedirectFrom: 'Kateqoriya:Şotlandiya filosofları (redir)',
+			redirectSites: ['az'],
+			redirectNames: [{ lang: 'az', name: 'Kateqoriya:Şotlandiya filosofları (redir)' }],
 		});
 	});
 
@@ -833,7 +835,9 @@ describe('buildMembersSuggestions', () => {
 		expect(suggestions[0]).toMatchObject({
 			title: 'İlqar İsmayılov',
 			sources: ['ru'],
-			redirectNames: [],
+			azRedirectFrom: 'İlqar İsmayılov (hərbçi)',
+			redirectSites: ['az'],
+			redirectNames: [{ lang: 'az', name: 'İlqar İsmayılov (hərbçi)' }],
 		});
 	});
 
@@ -864,6 +868,85 @@ describe('buildMembersSuggestions', () => {
 
 		const suggestions = await buildMembersSuggestions(rawResults, localData, { get: mockGet });
 		expect(suggestions).toEqual([]);
+	});
+
+	it('should not attach az provenance for a non-redirect candidate', async () => {
+		const mockGet = vi.fn(async (params) => {
+			const titles = params.titles || '';
+			if (titles.includes('İlqar İsmayılov')) {
+				return {
+					query: {
+						pages: {
+							11: {
+								title: 'İlqar İsmayılov',
+								categories: [{ title: 'Kateqoriya:Azərbaycan xanəndələri' }],
+							},
+						},
+					},
+				};
+			}
+			return { query: { pages: {} } };
+		});
+
+		const rawResults = [{ title: 'İlqar İsmayılov', sources: ['ru'] }];
+		const localData = {
+			members: new Set(),
+			subcats: new Set(),
+		};
+
+		const suggestions = await buildMembersSuggestions(rawResults, localData, { get: mockGet });
+		expect(suggestions).toHaveLength(1);
+		expect(suggestions[0].azRedirectFrom).toBeUndefined();
+		expect(suggestions[0].redirectSites).toEqual([]);
+		expect(suggestions[0].redirectNames).toEqual([]);
+	});
+
+	it('should merge foreign and azwiki redirect provenance', async () => {
+		const mockGet = vi.fn(async (params) => {
+			const titles = params.titles || '';
+			if (titles.includes('İlqar İsmayılov (hərbçi)')) {
+				return {
+					query: {
+						redirects: [{ from: 'İlqar İsmayılov (hərbçi)', to: 'İlqar İsmayılov' }],
+						pages: {
+							11: {
+								title: 'İlqar İsmayılov',
+								categories: [{ title: 'Kateqoriya:Azərbaycan xanəndələri' }],
+							},
+						},
+					},
+				};
+			}
+			return { query: { pages: {} } };
+		});
+
+		const rawResults = [{ title: 'İlqar İsmayılov (hərbçi)', sources: ['ru'] }];
+		const localData = {
+			members: new Set(),
+			subcats: new Set(),
+		};
+		const redirectResolvedCatToSites = new Map([
+			['İlqar İsmayılov (hərbçi)', new Set(['ru'])],
+		]);
+		const redirectResolvedCatToNames = new Map([
+			['İlqar İsmayılov (hərbçi)', [{ lang: 'ru', name: 'Исмаилов, Ильгар Сади оглы' }]],
+		]);
+
+		const suggestions = await buildMembersSuggestions(
+			rawResults,
+			localData,
+			{ get: mockGet },
+			new Set(),
+			redirectResolvedCatToSites,
+			redirectResolvedCatToNames
+		);
+		expect(suggestions).toHaveLength(1);
+		expect(suggestions[0].azRedirectFrom).toBe('İlqar İsmayılov (hərbçi)');
+		expect(suggestions[0].redirectSites).toEqual(['ru', 'az']);
+		expect(suggestions[0].redirectNames).toEqual([
+			{ lang: 'ru', name: 'Исмаилов, Ильгар Сади оглы' },
+			{ lang: 'az', name: 'İlqar İsmayılov (hərbçi)' },
+		]);
 	});
 
 	it('should propagate redirectSites from redirectResolvedCatToSites', async () => {

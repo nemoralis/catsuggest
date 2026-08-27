@@ -1281,7 +1281,8 @@ export default {
 		},
 
 		sourcesStatus(item) {
-			return (item.redirectSites || []).some((lang) => item.sources.includes(lang))
+			return item.azRedirectFrom ||
+				(item.redirectSites || []).some((lang) => item.sources.includes(lang))
 				? 'warning'
 				: 'progressive';
 		},
