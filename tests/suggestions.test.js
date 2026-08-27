@@ -90,6 +90,7 @@ describe('buildParentCatsSuggestions', () => {
 		expect(titles).toContain('Kateqoriya:Şotlandiya filosofları');
 		expect(titles).not.toContain('Kateqoriya:Britaniya filosofları');
 		expect(titles).not.toContain('Kateqoriya:Ateistlər');
+		expect(suggestions.every((s) => s.selected)).toBe(true);
 	});
 
 	it('should drop a redirect candidate whose target is already a current category', async () => {
@@ -168,6 +169,7 @@ describe('buildParentCatsSuggestions', () => {
 		expect(suggestions[0]).toMatchObject({
 			title: 'Kateqoriya:Şotlandiya filosofları',
 			sources: ['en'],
+			selected: false,
 			azRedirectFrom: 'Kateqoriya:Şotlandiya filosofları (redir)',
 			redirectSites: ['az'],
 			redirectNames: [{ lang: 'az', name: 'Kateqoriya:Şotlandiya filosofları (redir)' }],
@@ -835,6 +837,7 @@ describe('buildMembersSuggestions', () => {
 		expect(suggestions[0]).toMatchObject({
 			title: 'İlqar İsmayılov',
 			sources: ['ru'],
+			selected: false,
 			azRedirectFrom: 'İlqar İsmayılov (hərbçi)',
 			redirectSites: ['az'],
 			redirectNames: [{ lang: 'az', name: 'İlqar İsmayılov (hərbçi)' }],
@@ -897,6 +900,7 @@ describe('buildMembersSuggestions', () => {
 		const suggestions = await buildMembersSuggestions(rawResults, localData, { get: mockGet });
 		expect(suggestions).toHaveLength(1);
 		expect(suggestions[0].azRedirectFrom).toBeUndefined();
+		expect(suggestions[0].selected).toBe(true);
 		expect(suggestions[0].redirectSites).toEqual([]);
 		expect(suggestions[0].redirectNames).toEqual([]);
 	});
@@ -942,6 +946,7 @@ describe('buildMembersSuggestions', () => {
 		);
 		expect(suggestions).toHaveLength(1);
 		expect(suggestions[0].azRedirectFrom).toBe('İlqar İsmayılov (hərbçi)');
+		expect(suggestions[0].selected).toBe(false);
 		expect(suggestions[0].redirectSites).toEqual(['ru', 'az']);
 		expect(suggestions[0].redirectNames).toEqual([
 			{ lang: 'ru', name: 'Исмаилов, Ильгар Сади оглы' },
@@ -966,6 +971,7 @@ describe('buildMembersSuggestions', () => {
 		);
 
 		expect(suggestions[0].redirectSites).toEqual(['en']);
+		expect(suggestions[0].selected).toBe(false);
 	});
 
 	it('should propagate redirectNames from redirectResolvedCatToNames', async () => {
@@ -995,5 +1001,6 @@ describe('buildMembersSuggestions', () => {
 			{ lang: 'en', name: 'Redirect member' },
 			{ lang: 'ru', name: 'Redirect üzvü' },
 		]);
+		expect(suggestions[0].selected).toBe(false);
 	});
 });

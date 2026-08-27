@@ -45,6 +45,10 @@ function collectRedirectNames(pairs) {
  * @param {Map<string, string>} redirectMap - Redirect resolution map (from → to)
  * @return {string} Resolved title (or `title` when not a redirect)
  */
+function hasEntries(container) {
+	return container instanceof Set ? container.size > 0 : container.length > 0;
+}
+
 function resolveRedirectTitle(title, redirectMap) {
 	const visited = new Set();
 	let current = title;
@@ -470,7 +474,7 @@ async function buildParentCatsSuggestions(
 		const baseNames = redirectResolvedCatToNames.get(r.title) || [];
 		suggestions.push({
 			title: resolvedTitle,
-			selected: true,
+			selected: !(isAzwikiRedirect || hasEntries(baseSites) || hasEntries(baseNames)),
 			sources: r.sources,
 			azRedirectFrom: isAzwikiRedirect ? r.title : undefined,
 			redirectSites: isAzwikiRedirect
@@ -840,7 +844,7 @@ async function buildMembersSuggestions(
 		const baseNames = redirectResolvedCatToNames.get(item.title) || [];
 		suggestions.push({
 			title: resolvedTitle,
-			selected: true,
+			selected: !(isAzwikiRedirect || hasEntries(baseSites) || hasEntries(baseNames)),
 			sources: item.sources,
 			azRedirectFrom: isAzwikiRedirect ? item.title : undefined,
 			redirectSites: isAzwikiRedirect
