@@ -1292,9 +1292,18 @@ export default {
 			if (!(item.redirectSites || []).length || pairs.length === 0) {
 				return null;
 			}
+			const byLang = new Map();
+			pairs.forEach((p) => {
+				if (!byLang.has(p.lang)) {
+					byLang.set(p.lang, []);
+				}
+				byLang.get(p.lang).push(p.name);
+			});
 			return (
 				'Y\u00f6nl\u0259ndirm\u0259y\u0259 g\u00f6r\u0259:\n' +
-				pairs.map((p) => p.lang + ' \u2192 ' + p.name).join('\n')
+				Array.from(byLang, ([lang, names]) => lang + ' \u2192 ' + names.join(', ')).join(
+					'\n'
+				)
 			);
 		},
 
