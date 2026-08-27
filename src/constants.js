@@ -11,25 +11,25 @@ const MAXLAG_SECONDS = 5;
 const SLEEP_BETWEEN_BATCHES_MS = 300;
 const DEBOUNCE_MS = 150;
 const DEPTH2_BATCH_SIZE = 15;
-const MAX_DEPTH2_SUBCATS = 100;
-const MAX_DEPTH1_SUBCATS = 200;
+const MAX_DEPTH2_SUBCATS = 50;
+const MAX_DEPTH1_SUBCATS = 100;
 const CONFIRM_BATCH_THRESHOLD = 5;
 const ANCESTOR_CHECK_DEPTH = 4;
 const ENABLE_EDIT_GROUP_LINKS = false;
 const DEBUG = true;
-const DEV_MODE = false;
+const DEV_MODE = true;
 const CACHE_TTL_LANGUAGES = 31536000;
-const CACHE_TTL_TREE = 3600;
+const CACHE_TTL_TREE = 600;
 const CACHE_TTL_FOREIGN = 60;
-const CACHE_TTL_QID_AZWIKI = 3600;
 const CACHE_TTL_PROCESSED_PAGES = 86400;
 const CACHE_KEY_PROCESSED_PAGES = 'catsuggest-processed-pages';
 const CACHE_KEY_SITE_METADATA = 'catsuggest-site-metadata';
 const CACHE_KEY_TREE_PREFIX = 'catsuggest-tree-';
-const CACHE_KEY_FOREIGN_PREFIX = 'catsuggest-cache-';
-const CACHE_KEY_MEMBERS_FOREIGN_PREFIX = 'catsuggest-members-cache-';
-const CACHE_KEY_QID_AZWIKI = 'catsuggest-qid-azwiki';
-const CACHE_KEY_USER_LANGS = 'catsuggest-user-langs';
+const CACHE_KEY_FOREIGN_PREFIX = 'catsuggest-cache-2-';
+const CACHE_KEY_MEMBERS_FOREIGN_PREFIX = 'catsuggest-members-cache-2-';
+const CACHE_KEY_USER_LANGS_LEGACY = 'catsuggest-user-langs';
+const CACHE_KEY_USER_LANGS_MEMBERS = 'catsuggest-user-langs-members';
+const CACHE_KEY_USER_LANGS_PARENTCATS = 'catsuggest-user-langs-parentcats';
 const MAX_PROCESSED_PAGES = 500;
 const MAX_RETRIES = 3;
 const RETRY_BASE_DELAY_MS = 5000;
@@ -85,6 +85,16 @@ function isSameCategoryIgnoringPlural(a, b) {
 	return AZ_PLURAL_SUFFIXES.some((suffix) => a === b + suffix || b === a + suffix);
 }
 
+/**
+ * Return the cache key used to remember the user's selected languages for a mode.
+ *
+ * @param {string} mode 'members' or 'parentCats'
+ * @return {string}
+ */
+function getUserLangsKey(mode) {
+	return mode === 'members' ? CACHE_KEY_USER_LANGS_MEMBERS : CACHE_KEY_USER_LANGS_PARENTCATS;
+}
+
 module.exports = {
 	ALLOWED_NAMESPACES,
 	CATEGORY_NAMESPACE,
@@ -107,15 +117,15 @@ module.exports = {
 	CACHE_TTL_LANGUAGES,
 	CACHE_TTL_TREE,
 	CACHE_TTL_FOREIGN,
-	CACHE_TTL_QID_AZWIKI,
 	CACHE_TTL_PROCESSED_PAGES,
 	CACHE_KEY_PROCESSED_PAGES,
 	CACHE_KEY_SITE_METADATA,
 	CACHE_KEY_TREE_PREFIX,
 	CACHE_KEY_FOREIGN_PREFIX,
 	CACHE_KEY_MEMBERS_FOREIGN_PREFIX,
-	CACHE_KEY_QID_AZWIKI,
-	CACHE_KEY_USER_LANGS,
+	CACHE_KEY_USER_LANGS_LEGACY,
+	CACHE_KEY_USER_LANGS_MEMBERS,
+	CACHE_KEY_USER_LANGS_PARENTCATS,
 	MAX_PROCESSED_PAGES,
 	MAX_RETRIES,
 	RETRY_BASE_DELAY_MS,
@@ -126,6 +136,7 @@ module.exports = {
 	EXCLUDED_TITLES,
 	REMOVAL_EXCLUDED_KEYWORDS,
 	isSameCategoryIgnoringPlural,
+	getUserLangsKey,
 	LARGE_WIKI_SITES,
 	log,
 	escapeRegex,

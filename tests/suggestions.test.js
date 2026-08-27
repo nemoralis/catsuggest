@@ -581,7 +581,7 @@ describe('fetchMembersSuggestions', () => {
 
 	it('should restore redirect names from cache entries and tolerate legacy formats', async () => {
 		global.mw.storage.get = vi.fn((key) => {
-			if (key === 'catsuggest-members-cache-Q7214468-enwiki') {
+			if (key === 'catsuggest-members-cache-2-Q7214468-enwiki') {
 				return JSON.stringify([
 					{
 						t: 'Ermənistan Silahlı Qüvvələri',
@@ -621,7 +621,7 @@ describe('fetchMembersSuggestions', () => {
 
 	it('should restore redirect flags from cache entries and ignore legacy bare strings', async () => {
 		global.mw.storage.get = vi.fn((key) => {
-			if (key === 'catsuggest-members-cache-Q7214468-enwiki') {
+			if (key === 'catsuggest-members-cache-2-Q7214468-enwiki') {
 				return JSON.stringify([
 					{ t: 'Ermənistan Silahlı Qüvvələri', r: true },
 					{ t: 'Ey Reqib', r: false },

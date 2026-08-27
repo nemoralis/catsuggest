@@ -513,7 +513,8 @@ const {
 	CONFIRM_BATCH_THRESHOLD,
 	EXCLUDED_SITES,
 	LARGE_WIKI_SITES,
-	CACHE_KEY_USER_LANGS,
+	CACHE_KEY_USER_LANGS_LEGACY,
+	getUserLangsKey,
 	CACHE_KEY_TREE_PREFIX,
 	CACHE_TTL_TREE,
 	MAX_DEPTH1_SUBCATS,
@@ -784,32 +785,53 @@ export default {
 					return;
 				}
 
-				const cachedUserLangs = mw.storage.get(CACHE_KEY_USER_LANGS);
-				let initialLangs = [];
+				const legacyLangEntry = mw.storage.get(CACHE_KEY_USER_LANGS_LEGACY);
 
-				if (cachedUserLangs) {
+				const parseStoredLangs = (raw) => {
+					if (!raw) {
+						return null;
+					}
 					try {
-						const parsed = JSON.parse(cachedUserLangs);
+						const parsed = JSON.parse(raw);
 						if (Array.isArray(parsed) && parsed.length > 0) {
-							initialLangs = parsed.filter((site) =>
+							return parsed.filter((site) =>
 								this.sitelinks.some((s) => s.site === site)
 							);
 						}
 					} catch (_err) {
 						mw.log.warn('User langs parse error:', _err);
-						mw.storage.remove(CACHE_KEY_USER_LANGS);
 					}
-				}
+					return null;
+				};
 
-				if (initialLangs.length === 0) {
-					initialLangs = Array.from(LARGE_WIKI_SITES).filter((site) =>
-						this.sitelinks.some((s) => s.site === site)
-					);
-				}
+				const defaultLangs = Array.from(LARGE_WIKI_SITES).filter((site) =>
+					this.sitelinks.some((s) => s.site === site)
+				);
 
-				if (initialLangs.length > 0) {
-					this.modeSelectedSites.members = initialLangs.slice();
-					this.modeSelectedSites.parentCats = initialLangs.slice();
+				const resolveInitialLangs = (mode, legacyValue) => {
+					const ownKey = getUserLangsKey(mode);
+					const own = mw.storage.get(ownKey);
+					if (own) {
+						const parsed = parseStoredLangs(own);
+						if (parsed) {
+							return parsed;
+						}
+						mw.storage.remove(ownKey);
+					}
+					if (legacyValue) {
+						return parseStoredLangs(legacyValue);
+					}
+					return defaultLangs.slice();
+				};
+
+				this.modeSelectedSites.members = resolveInitialLangs('members', legacyLangEntry);
+				this.modeSelectedSites.parentCats = resolveInitialLangs(
+					'parentCats',
+					legacyLangEntry
+				);
+
+				if (legacyLangEntry) {
+					mw.storage.remove(CACHE_KEY_USER_LANGS_LEGACY);
 				}
 
 				this.status = 'idle';
@@ -996,7 +1018,7 @@ export default {
 
 				if (this.rememberLangs) {
 					mw.storage.set(
-						CACHE_KEY_USER_LANGS,
+						getUserLangsKey(this.mode),
 						JSON.stringify(this.selectedSites),
 						31536000
 					);
