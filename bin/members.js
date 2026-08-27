@@ -147,12 +147,12 @@ async function fetchLocalTree(azApi, categoryTitle) {
 	const depth2 = [];
 	const depth3 = [];
 
-	const fetchCm = async (title) => {
+	const fetchCm = async (title, cmtype = 'page|subcat') => {
 		const resp = await fetchFullQuery(azApi, {
 			action: 'query',
 			list: 'categorymembers',
 			cmtitle: title,
-			cmtype: 'page|subcat',
+			cmtype,
 			cmlimit: 'max',
 		});
 		return resp.categorymembers || [];
@@ -169,7 +169,7 @@ async function fetchLocalTree(azApi, categoryTitle) {
 
 	for (let i = 0; i < depth1.slice(0, MAX_DEPTH1_SUBCATS).length; i += DEPTH2_BATCH_SIZE) {
 		const batch = depth1.slice(i, i + DEPTH2_BATCH_SIZE);
-		const results = await Promise.all(batch.map((c) => fetchCm(c)));
+		const results = await Promise.all(batch.map((c) => fetchCm(c, 'subcat')));
 		results.forEach((members) => {
 			members.forEach((m) => {
 				memberSet.add(m.title);
@@ -183,7 +183,7 @@ async function fetchLocalTree(azApi, categoryTitle) {
 
 	for (let i = 0; i < depth2.slice(0, MAX_DEPTH2_SUBCATS).length; i += DEPTH2_BATCH_SIZE) {
 		const batch = depth2.slice(i, i + DEPTH2_BATCH_SIZE);
-		const results = await Promise.all(batch.map((c) => fetchCm(c)));
+		const results = await Promise.all(batch.map((c) => fetchCm(c, 'subcat')));
 		results.forEach((members) => {
 			members.forEach((m) => {
 				memberSet.add(m.title);

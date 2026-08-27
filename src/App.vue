@@ -906,6 +906,15 @@ export default {
 				}
 			});
 
+			// Deeper levels only need subcategory *names* for dedup: a suggestion that
+			// lives inside any subcategory is already filtered by its parent categories
+			// (buildMembersSuggestions), so enumerating the member *pages* of each
+			// subcategory would fetch thousands of titles for no benefit. Fetching
+			// `cmtype: 'subcat'` keeps the tree walk small and fast even for large
+			// categories while discovering the same deeper subcategory names.
+			//
+			// The direct members of the root category (pages + subcats) above still
+			// populate memberSet, so plain root members remain excluded as expected.
 			const depth2Subcats = [];
 			const subcatsToProcess = depth1Subcats.slice(0, MAX_DEPTH1_SUBCATS);
 			for (let i = 0; i < subcatsToProcess.length; i += DEPTH2_BATCH_SIZE) {
@@ -916,7 +925,7 @@ export default {
 							action: 'query',
 							list: 'categorymembers',
 							cmtitle: cat,
-							cmtype: 'page|subcat',
+							cmtype: 'subcat',
 							cmlimit: 'max',
 						})
 					)
@@ -942,7 +951,7 @@ export default {
 							action: 'query',
 							list: 'categorymembers',
 							cmtitle: cat,
-							cmtype: 'page|subcat',
+							cmtype: 'subcat',
 							cmlimit: 'max',
 						})
 					)
