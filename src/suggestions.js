@@ -37,6 +37,14 @@ function collectRedirectNames(pairs) {
 	return result;
 }
 /**
+ * @param {Set|Array} container
+ * @return {boolean} True when the container has at least one entry
+ */
+function hasEntries(container) {
+	return container instanceof Set ? container.size > 0 : container.length > 0;
+}
+
+/**
  * Follow azwiki-side redirect chains reported by the API (`query.redirects`,
  * `from → to`, from the `redirects: true` title lookups) to find the canonical
  * title for a candidate that arrived via a foreign langlink.
@@ -45,10 +53,6 @@ function collectRedirectNames(pairs) {
  * @param {Map<string, string>} redirectMap - Redirect resolution map (from → to)
  * @return {string} Resolved title (or `title` when not a redirect)
  */
-function hasEntries(container) {
-	return container instanceof Set ? container.size > 0 : container.length > 0;
-}
-
 function resolveRedirectTitle(title, redirectMap) {
 	const visited = new Set();
 	let current = title;
@@ -63,16 +67,16 @@ function resolveRedirectTitle(title, redirectMap) {
  * Results are cached in mw.storage and added to globalCatToSites map.
  * Titles reached by following a redirect (targets in the API's `query.redirects`)
  * are additionally recorded in redirectResolvedCatToSites so the UI can flag them,
- * and the redirect's original page name in redirectResolvedCatToNames so the UI
- * can explain the provenance (e.g. in a chip tooltip).
+ * and the foreign title(s) that produced each suggestion in foreignNamesByTitle so
+ * the UI can explain the provenance (e.g. in a chip tooltip).
  *
  * @param {Object} foreignApi
  * @param {Object} siteData
  * @param {string} lang
  * @param {Map} globalCatToSites
  * @param {string} qid
- * @param {Map} [redirectResolvedCatToSites]
- * @param {Map} [redirectResolvedCatToNames] - Redirect name per title (array of {lang, name})
+ * @param {Map} [redirectResolvedCatToSites] - Titles reached via foreign-wiki redirect resolution (lang→set)
+ * @param {Map} [foreignNamesByTitle] - Foreign title(s) per azwiki title (array of {lang, name})
  * @return {Promise|undefined}
  */
 function fetchParentCatsSuggestions(
@@ -82,7 +86,7 @@ function fetchParentCatsSuggestions(
 	globalCatToSites,
 	qid,
 	redirectResolvedCatToSites = new Map(),
-	redirectResolvedCatToNames = new Map()
+	foreignNamesByTitle = new Map()
 ) {
 	const cacheKey = CACHE_KEY_FOREIGN_PREFIX + qid + '-' + siteData.site;
 	const cached = mw.storage.get(cacheKey);
@@ -104,11 +108,11 @@ function fetchParentCatsSuggestions(
 						redirectResolvedCatToSites.get(catTitle).add(lang);
 					}
 					if (entry && Array.isArray(entry.n)) {
-						if (!redirectResolvedCatToNames.has(catTitle)) {
-							redirectResolvedCatToNames.set(catTitle, []);
+						if (!foreignNamesByTitle.has(catTitle)) {
+							foreignNamesByTitle.set(catTitle, []);
 						}
 						entry.n.forEach((name) => {
-							redirectResolvedCatToNames.get(catTitle).push({ lang, name });
+							foreignNamesByTitle.get(catTitle).push({ lang, name });
 						});
 					}
 				});
@@ -150,13 +154,13 @@ function fetchParentCatsSuggestions(
 			if (p.langlinks && p.langlinks.length > 0) {
 				const azwikiTitle = p.langlinks[0]['*'];
 				const isRedirectResolved = resolvedTargets.has(p.title);
-				const redirectNames = isRedirectResolved
+				const foreignNames = isRedirectResolved
 					? resolvedTargetToNames.get(p.title) || []
-					: [];
+					: [p.title];
 				azwikiCatsForCache.push({
 					t: azwikiTitle,
 					r: isRedirectResolved,
-					n: redirectNames,
+					n: foreignNames,
 				});
 				if (!globalCatToSites.has(azwikiTitle)) {
 					globalCatToSites.set(azwikiTitle, new Set());
@@ -167,13 +171,13 @@ function fetchParentCatsSuggestions(
 						redirectResolvedCatToSites.set(azwikiTitle, new Set());
 					}
 					redirectResolvedCatToSites.get(azwikiTitle).add(lang);
-					if (!redirectResolvedCatToNames.has(azwikiTitle)) {
-						redirectResolvedCatToNames.set(azwikiTitle, []);
-					}
-					redirectNames.forEach((name) => {
-						redirectResolvedCatToNames.get(azwikiTitle).push({ lang, name });
-					});
 				}
+				if (!foreignNamesByTitle.has(azwikiTitle)) {
+					foreignNamesByTitle.set(azwikiTitle, []);
+				}
+				foreignNames.forEach((name) => {
+					foreignNamesByTitle.get(azwikiTitle).push({ lang, name });
+				});
 			}
 		});
 		if (azwikiCatsForCache.length > 0) {
@@ -188,8 +192,8 @@ function fetchParentCatsSuggestions(
  * Results are cached in mw.storage and added to globalCatToSites map.
  * Titles reached by following a redirect (targets in the API's `query.redirects`)
  * are additionally recorded in redirectResolvedCatToSites so the UI can flag them,
- * and the redirect's original page name in redirectResolvedCatToNames so the UI
- * can explain the provenance (e.g. in a chip tooltip).
+ * and the foreign title(s) that produced each suggestion in foreignNamesByTitle so
+ * the UI can explain the provenance (e.g. in a chip tooltip).
  *
  * @param {Object} foreignApi
  * @param {Object} siteData
@@ -197,7 +201,7 @@ function fetchParentCatsSuggestions(
  * @param {Map} globalCatToSites
  * @param {string} qid
  * @param {Map} [redirectResolvedCatToSites]
- * @param {Map} [redirectResolvedCatToNames] - Redirect name per title (array of {lang, name})
+ * @param {Map} [foreignNamesByTitle] - Foreign title(s) per azwiki title (array of {lang, name})
  * @return {Promise|undefined}
  */
 function fetchMembersSuggestions(
@@ -207,7 +211,7 @@ function fetchMembersSuggestions(
 	globalCatToSites,
 	qid,
 	redirectResolvedCatToSites = new Map(),
-	redirectResolvedCatToNames = new Map()
+	foreignNamesByTitle = new Map()
 ) {
 	const cacheKey = CACHE_KEY_MEMBERS_FOREIGN_PREFIX + qid + '-' + siteData.site;
 	const cached = mw.storage.get(cacheKey);
@@ -229,11 +233,11 @@ function fetchMembersSuggestions(
 						redirectResolvedCatToSites.get(catTitle).add(lang);
 					}
 					if (entry && Array.isArray(entry.n)) {
-						if (!redirectResolvedCatToNames.has(catTitle)) {
-							redirectResolvedCatToNames.set(catTitle, []);
+						if (!foreignNamesByTitle.has(catTitle)) {
+							foreignNamesByTitle.set(catTitle, []);
 						}
 						entry.n.forEach((name) => {
-							redirectResolvedCatToNames.get(catTitle).push({ lang, name });
+							foreignNamesByTitle.get(catTitle).push({ lang, name });
 						});
 					}
 				});
@@ -274,13 +278,13 @@ function fetchMembersSuggestions(
 			if (p.langlinks && p.langlinks.length > 0) {
 				const azwikiTitle = p.langlinks[0]['*'];
 				const isRedirectResolved = resolvedTargets.has(p.title);
-				const redirectNames = isRedirectResolved
+				const foreignNames = isRedirectResolved
 					? resolvedTargetToNames.get(p.title) || []
-					: [];
+					: [p.title];
 				azwikiCatsForCache.push({
 					t: azwikiTitle,
 					r: isRedirectResolved,
-					n: redirectNames,
+					n: foreignNames,
 				});
 				if (!globalCatToSites.has(azwikiTitle)) {
 					globalCatToSites.set(azwikiTitle, new Set());
@@ -291,13 +295,13 @@ function fetchMembersSuggestions(
 						redirectResolvedCatToSites.set(azwikiTitle, new Set());
 					}
 					redirectResolvedCatToSites.get(azwikiTitle).add(lang);
-					if (!redirectResolvedCatToNames.has(azwikiTitle)) {
-						redirectResolvedCatToNames.set(azwikiTitle, []);
-					}
-					redirectNames.forEach((name) => {
-						redirectResolvedCatToNames.get(azwikiTitle).push({ lang, name });
-					});
 				}
+				if (!foreignNamesByTitle.has(azwikiTitle)) {
+					foreignNamesByTitle.set(azwikiTitle, []);
+				}
+				foreignNames.forEach((name) => {
+					foreignNamesByTitle.get(azwikiTitle).push({ lang, name });
+				});
 			}
 		});
 		if (azwikiCatsForCache.length > 0) {
@@ -313,7 +317,7 @@ function fetchMembersSuggestions(
  * @param {string} currentPageTitle - Title of the current page (no prefix)
  * @param {Set<string>} templateAddedCats - Categories added via templates (excluded from removals)
  * @param {Map} [redirectResolvedCatToSites] - Titles reached via foreign-wiki redirect resolution
- * @param {Map} [redirectResolvedCatToNames] - Redirect name per title (array of {lang, name})
+ * @param {Map} [foreignNamesByTitle] - Foreign title(s) per azwiki title (array of {lang, name})
  * @return {Promise<{suggestions: Array, parentMap: Map}>}
  */
 async function buildParentCatsSuggestions(
@@ -323,7 +327,7 @@ async function buildParentCatsSuggestions(
 	currentPageTitle,
 	templateAddedCats = new Set(),
 	redirectResolvedCatToSites = new Map(),
-	redirectResolvedCatToNames = new Map()
+	foreignNamesByTitle = new Map()
 ) {
 	const currentCatsSet = new Set(currentCats);
 	const suggestionTitles = rawResults.map((r) => r.title);
@@ -471,18 +475,18 @@ async function buildParentCatsSuggestions(
 		const azLang = CURRENT_WIKI.replace('wiki', '');
 		const isAzwikiRedirect = resolvedTitle !== r.title;
 		const baseSites = redirectResolvedCatToSites.get(r.title) || [];
-		const baseNames = redirectResolvedCatToNames.get(r.title) || [];
+		const foreignNames = foreignNamesByTitle.get(r.title) || [];
 		suggestions.push({
 			title: resolvedTitle,
-			selected: !(isAzwikiRedirect || hasEntries(baseSites) || hasEntries(baseNames)),
+			selected: !(isAzwikiRedirect || hasEntries(baseSites)),
 			sources: r.sources,
 			azRedirectFrom: isAzwikiRedirect ? r.title : undefined,
 			redirectSites: isAzwikiRedirect
 				? Array.from(new Set([...baseSites, azLang]))
 				: Array.from(baseSites),
-			redirectNames: isAzwikiRedirect
-				? collectRedirectNames([...baseNames, { lang: azLang, name: r.title }])
-				: collectRedirectNames(baseNames),
+			foreignNames: isAzwikiRedirect
+				? collectRedirectNames([...foreignNames, { lang: azLang, name: r.title }])
+				: collectRedirectNames(foreignNames),
 			removals: [],
 		});
 	});
@@ -764,8 +768,8 @@ async function buildExistingRemovals(
  * @param {{ get: Function }} api - MediaWiki API object
  * @param {Set<string>} currentPageCats - Categories the current page belongs to (to filter out parents)
  * @param {Map} [redirectResolvedCatToSites] - Titles reached via foreign-wiki redirect resolution
- * @param {Map} [redirectResolvedCatToNames] - Redirect name per title (array of {lang, name})
- * @return {Promise<Array<{title: string, selected: boolean, sources: string[], redirectSites: string[], redirectNames: Array, isCategory: boolean}>>}
+ * @param {Map} [foreignNamesByTitle] - Foreign title(s) per azwiki title (array of {lang, name})
+ * @return {Promise<Array<{title: string, selected: boolean, sources: string[], redirectSites: string[], foreignNames: Array, isCategory: boolean}>>}
  */
 async function buildMembersSuggestions(
 	rawResults,
@@ -773,7 +777,7 @@ async function buildMembersSuggestions(
 	api,
 	currentPageCats = new Set(),
 	redirectResolvedCatToSites = new Map(),
-	redirectResolvedCatToNames = new Map()
+	foreignNamesByTitle = new Map()
 ) {
 	const { members: currentMembersSet, subcats: currentSubcatsSet } = localData;
 	const suggestionTitles = rawResults.map((r) => r.title);
@@ -841,18 +845,18 @@ async function buildMembersSuggestions(
 		const azLang = CURRENT_WIKI.replace('wiki', '');
 		const isAzwikiRedirect = resolvedTitle !== item.title;
 		const baseSites = redirectResolvedCatToSites.get(item.title) || [];
-		const baseNames = redirectResolvedCatToNames.get(item.title) || [];
+		const foreignNames = foreignNamesByTitle.get(item.title) || [];
 		suggestions.push({
 			title: resolvedTitle,
-			selected: !(isAzwikiRedirect || hasEntries(baseSites) || hasEntries(baseNames)),
+			selected: !(isAzwikiRedirect || hasEntries(baseSites)),
 			sources: item.sources,
 			azRedirectFrom: isAzwikiRedirect ? item.title : undefined,
 			redirectSites: isAzwikiRedirect
 				? Array.from(new Set([...baseSites, azLang]))
 				: Array.from(baseSites),
-			redirectNames: isAzwikiRedirect
-				? collectRedirectNames([...baseNames, { lang: azLang, name: item.title }])
-				: collectRedirectNames(baseNames),
+			foreignNames: isAzwikiRedirect
+				? collectRedirectNames([...foreignNames, { lang: azLang, name: item.title }])
+				: collectRedirectNames(foreignNames),
 			isCategory: resolvedTitle.startsWith(CATEGORY_PREFIX),
 		});
 	});

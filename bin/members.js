@@ -213,7 +213,7 @@ async function fetchCurrentPageCats(azApi, title) {
 async function fetchForeignMembers(sites, qid) {
 	const globalCatToSites = new Map();
 	const redirectResolvedCatToSites = new Map();
-	const redirectResolvedCatToNames = new Map();
+	const foreignNamesByTitle = new Map();
 
 	for (let i = 0; i < sites.length; i += FETCH_CONCURRENCY) {
 		const batch = sites.slice(i, i + FETCH_CONCURRENCY);
@@ -226,7 +226,7 @@ async function fetchForeignMembers(sites, qid) {
 					globalCatToSites,
 					qid,
 					redirectResolvedCatToSites,
-					redirectResolvedCatToNames
+					foreignNamesByTitle
 				)
 			)
 		);
@@ -235,7 +235,7 @@ async function fetchForeignMembers(sites, qid) {
 		}
 	}
 
-	return { globalCatToSites, redirectResolvedCatToSites, redirectResolvedCatToNames };
+	return { globalCatToSites, redirectResolvedCatToSites, foreignNamesByTitle };
 }
 
 async function classifyCandidates(azApi, candidates, localTree, currentPageCats) {
@@ -423,7 +423,7 @@ async function main() {
 			FETCH_CONCURRENCY +
 			')...'
 	);
-	const { globalCatToSites, redirectResolvedCatToSites, redirectResolvedCatToNames } =
+	const { globalCatToSites, redirectResolvedCatToSites, foreignNamesByTitle } =
 		await fetchForeignMembers(selected, qid);
 
 	const candidates = Array.from(globalCatToSites.entries()).map(([title, sitesSet]) => ({
@@ -446,7 +446,7 @@ async function main() {
 		azApi,
 		new Set(currentPageCats),
 		redirectResolvedCatToSites,
-		redirectResolvedCatToNames
+		foreignNamesByTitle
 	);
 
 	const currentPageCatsSet = new Set(currentPageCats);
@@ -480,7 +480,7 @@ async function main() {
 			const redirectFlag =
 				s.redirectSites.length > 0
 					? '  [redirect provenance: ' +
-						s.redirectNames.map((p) => p.lang + ' -> ' + p.name).join('; ') +
+						s.foreignNames.map((p) => p.lang + ' -> ' + p.name).join('; ') +
 						']'
 					: '';
 			console.log(

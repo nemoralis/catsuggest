@@ -172,7 +172,7 @@ describe('buildParentCatsSuggestions', () => {
 			selected: false,
 			azRedirectFrom: 'Kateqoriya:Şotlandiya filosofları (redir)',
 			redirectSites: ['az'],
-			redirectNames: [{ lang: 'az', name: 'Kateqoriya:Şotlandiya filosofları (redir)' }],
+			foreignNames: [{ lang: 'az', name: 'Kateqoriya:Şotlandiya filosofları (redir)' }],
 		});
 	});
 
@@ -259,11 +259,11 @@ describe('buildParentCatsSuggestions', () => {
 		expect(suggestions[0].removals[0].selected).toBe(false);
 	});
 
-	it('should propagate redirectNames from redirectResolvedCatToNames', async () => {
+	it('should propagate foreign names from foreignNamesByTitle', async () => {
 		const mockGet = vi.fn(async () => ({ query: { pages: {} } }));
 
 		const rawResults = [{ title: 'Kateqoriya:Ekzistensial risk', sources: ['en'] }];
-		const redirectResolvedCatToNames = new Map([
+		const foreignNamesByTitle = new Map([
 			['Kateqoriya:Ekzistensial risk', [{ lang: 'en', name: 'Category:Redirect parent' }]],
 		]);
 
@@ -274,10 +274,10 @@ describe('buildParentCatsSuggestions', () => {
 			'',
 			new Set(),
 			new Map(),
-			redirectResolvedCatToNames
+			foreignNamesByTitle
 		);
 
-		expect(suggestions[0].redirectNames).toEqual([
+		expect(suggestions[0].foreignNames).toEqual([
 			{ lang: 'en', name: 'Category:Redirect parent' },
 		]);
 	});
@@ -557,7 +557,7 @@ describe('fetchMembersSuggestions', () => {
 		}));
 
 		const globalCatToSites = new Map();
-		const redirectResolvedCatToNames = new Map();
+		const foreignNamesByTitle = new Map();
 		await fetchMembersSuggestions(
 			{ get: mockGet },
 			{ title: 'Category:Patriotic songs', site: 'enwiki' },
@@ -565,10 +565,10 @@ describe('fetchMembersSuggestions', () => {
 			globalCatToSites,
 			'Q7214468',
 			new Map(),
-			redirectResolvedCatToNames
+			foreignNamesByTitle
 		);
 
-		expect(Array.from(redirectResolvedCatToNames.entries())).toEqual([
+		expect(Array.from(foreignNamesByTitle.entries())).toEqual([
 			[
 				'Ermənistan Silahlı Qüvvələri',
 				[
@@ -598,7 +598,7 @@ describe('fetchMembersSuggestions', () => {
 
 		const globalCatToSites = new Map();
 		const redirectResolvedCatToSites = new Map();
-		const redirectResolvedCatToNames = new Map();
+		const foreignNamesByTitle = new Map();
 		await fetchMembersSuggestions(
 			{ get: mockGet },
 			{ title: 'Category:Patriotic songs', site: 'enwiki' },
@@ -606,14 +606,14 @@ describe('fetchMembersSuggestions', () => {
 			globalCatToSites,
 			'Q7214468',
 			redirectResolvedCatToSites,
-			redirectResolvedCatToNames
+			foreignNamesByTitle
 		);
 
 		expect(mockGet).not.toHaveBeenCalled();
 		expect(Array.from(redirectResolvedCatToSites.keys())).toEqual([
 			'Ermənistan Silahlı Qüvvələri',
 		]);
-		expect(Array.from(redirectResolvedCatToNames.entries())).toEqual([
+		expect(Array.from(foreignNamesByTitle.entries())).toEqual([
 			['Ermənistan Silahlı Qüvvələri', [{ lang: 'en', name: 'Our name is Armenian Army' }]],
 		]);
 		expect(globalCatToSites.has('Kateqoriya:Ölkələrinə görə himnlər')).toBe(true);
@@ -648,6 +648,36 @@ describe('fetchMembersSuggestions', () => {
 			'Ermənistan Silahlı Qüvvələri',
 		]);
 		expect(globalCatToSites.has('Kateqoriya:Ölkələrinə görə himnlər')).toBe(true);
+	});
+
+	it('should record the foreign page title for a non-redirect member', async () => {
+		const mockGet = vi.fn(async () => ({
+			query: {
+				pages: {
+					1: {
+						title: 'Kateqoriya:Existential risk',
+						langlinks: [{ lang: 'az', '*': 'Kateqoriya:Ekzistensial risk' }],
+					},
+				},
+			},
+		}));
+
+		const globalCatToSites = new Map();
+		const foreignNamesByTitle = new Map();
+		await fetchMembersSuggestions(
+			{ get: mockGet },
+			{ title: 'Category:Existential risk', site: 'enwiki' },
+			'en',
+			globalCatToSites,
+			'Q1234',
+			new Map(),
+			foreignNamesByTitle
+		);
+
+		expect(globalCatToSites.get('Kateqoriya:Ekzistensial risk')).toEqual(new Set(['en']));
+		expect(foreignNamesByTitle.get('Kateqoriya:Ekzistensial risk')).toEqual([
+			{ lang: 'en', name: 'Kateqoriya:Existential risk' },
+		]);
 	});
 });
 
@@ -709,7 +739,7 @@ describe('fetchParentCatsSuggestions', () => {
 		}));
 
 		const globalCatToSites = new Map();
-		const redirectResolvedCatToNames = new Map();
+		const foreignNamesByTitle = new Map();
 		await fetchParentCatsSuggestions(
 			{ get: mockGet },
 			{ title: 'Category:Patriotic songs', site: 'enwiki' },
@@ -717,10 +747,10 @@ describe('fetchParentCatsSuggestions', () => {
 			globalCatToSites,
 			'Q7214468',
 			new Map(),
-			redirectResolvedCatToNames
+			foreignNamesByTitle
 		);
 
-		expect(Array.from(redirectResolvedCatToNames.entries())).toEqual([
+		expect(Array.from(foreignNamesByTitle.entries())).toEqual([
 			['Kateqoriya:Vətənpərvər musiqisi', [{ lang: 'en', name: 'Category:Redirect parent' }]],
 		]);
 	});
@@ -840,7 +870,7 @@ describe('buildMembersSuggestions', () => {
 			selected: false,
 			azRedirectFrom: 'İlqar İsmayılov (hərbçi)',
 			redirectSites: ['az'],
-			redirectNames: [{ lang: 'az', name: 'İlqar İsmayılov (hərbçi)' }],
+			foreignNames: [{ lang: 'az', name: 'İlqar İsmayılov (hərbçi)' }],
 		});
 	});
 
@@ -902,7 +932,50 @@ describe('buildMembersSuggestions', () => {
 		expect(suggestions[0].azRedirectFrom).toBeUndefined();
 		expect(suggestions[0].selected).toBe(true);
 		expect(suggestions[0].redirectSites).toEqual([]);
-		expect(suggestions[0].redirectNames).toEqual([]);
+		expect(suggestions[0].foreignNames).toEqual([]);
+	});
+
+	it('should attach foreign names and stay selected for a plain candidate', async () => {
+		const mockGet = vi.fn(async (params) => {
+			const titles = params.titles || '';
+			if (titles.includes('İlqar İsmayılov')) {
+				return {
+					query: {
+						pages: {
+							11: {
+								title: 'İlqar İsmayılov',
+								categories: [{ title: 'Kateqoriya:Azərbaycan xanəndələri' }],
+							},
+						},
+					},
+				};
+			}
+			return { query: { pages: {} } };
+		});
+
+		const rawResults = [{ title: 'İlqar İsmayılov', sources: ['ru'] }];
+		const localData = {
+			members: new Set(),
+			subcats: new Set(),
+		};
+		const foreignNamesByTitle = new Map([
+			['İlqar İsmayılov', [{ lang: 'ru', name: 'Исмаилов, Ильгар Сади оглы' }]],
+		]);
+
+		const suggestions = await buildMembersSuggestions(
+			rawResults,
+			localData,
+			{ get: mockGet },
+			new Set(),
+			new Map(),
+			foreignNamesByTitle
+		);
+		expect(suggestions).toHaveLength(1);
+		expect(suggestions[0].foreignNames).toEqual([
+			{ lang: 'ru', name: 'Исмаилов, Ильгар Сади оглы' },
+		]);
+		expect(suggestions[0].selected).toBe(true);
+		expect(suggestions[0].redirectSites).toEqual([]);
 	});
 
 	it('should merge foreign and azwiki redirect provenance', async () => {
@@ -932,7 +1005,7 @@ describe('buildMembersSuggestions', () => {
 		const redirectResolvedCatToSites = new Map([
 			['İlqar İsmayılov (hərbçi)', new Set(['ru'])],
 		]);
-		const redirectResolvedCatToNames = new Map([
+		const foreignNamesByTitle = new Map([
 			['İlqar İsmayılov (hərbçi)', [{ lang: 'ru', name: 'Исмаилов, Ильгар Сади оглы' }]],
 		]);
 
@@ -942,13 +1015,13 @@ describe('buildMembersSuggestions', () => {
 			{ get: mockGet },
 			new Set(),
 			redirectResolvedCatToSites,
-			redirectResolvedCatToNames
+			foreignNamesByTitle
 		);
 		expect(suggestions).toHaveLength(1);
 		expect(suggestions[0].azRedirectFrom).toBe('İlqar İsmayılov (hərbçi)');
 		expect(suggestions[0].selected).toBe(false);
 		expect(suggestions[0].redirectSites).toEqual(['ru', 'az']);
-		expect(suggestions[0].redirectNames).toEqual([
+		expect(suggestions[0].foreignNames).toEqual([
 			{ lang: 'ru', name: 'Исмаилов, Ильгар Сади оглы' },
 			{ lang: 'az', name: 'İlqar İsmayılov (hərbçi)' },
 		]);
@@ -974,11 +1047,11 @@ describe('buildMembersSuggestions', () => {
 		expect(suggestions[0].selected).toBe(false);
 	});
 
-	it('should propagate redirectNames from redirectResolvedCatToNames', async () => {
+	it('should propagate foreign names from foreignNamesByTitle', async () => {
 		const mockGet = vi.fn(async () => ({ query: { pages: {} } }));
 
 		const rawResults = [{ title: 'Kateqoriya:Ekzistensial risk', sources: ['en', 'ru'] }];
-		const redirectResolvedCatToNames = new Map([
+		const foreignNamesByTitle = new Map([
 			[
 				'Kateqoriya:Ekzistensial risk',
 				[
@@ -994,13 +1067,13 @@ describe('buildMembersSuggestions', () => {
 			{ get: mockGet },
 			new Set(),
 			new Map(),
-			redirectResolvedCatToNames
+			foreignNamesByTitle
 		);
 
-		expect(suggestions[0].redirectNames).toEqual([
+		expect(suggestions[0].foreignNames).toEqual([
 			{ lang: 'en', name: 'Redirect member' },
 			{ lang: 'ru', name: 'Redirect üzvü' },
 		]);
-		expect(suggestions[0].selected).toBe(false);
+		expect(suggestions[0].selected).toBe(true);
 	});
 });

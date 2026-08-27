@@ -226,7 +226,7 @@
 												<span
 													v-if="item.sources && item.sources.length"
 													class="catsuggest-suggestion__sources"
-													v-tooltip:bottom="redirectTooltip(item)"
+													v-tooltip:bottom="suggestionTooltip(item)"
 												>
 													<cdx-info-chip
 														:icon="icons.language"
@@ -264,7 +264,7 @@
 												<span
 													v-if="item.sources && item.sources.length"
 													class="catsuggest-suggestion__sources"
-													v-tooltip:bottom="redirectTooltip(item)"
+													v-tooltip:bottom="suggestionTooltip(item)"
 												>
 													<cdx-info-chip
 														:icon="icons.language"
@@ -305,7 +305,7 @@
 											<span
 												v-if="cat.sources && cat.sources.length"
 												class="catsuggest-suggestion__sources"
-												v-tooltip:bottom="redirectTooltip(cat)"
+												v-tooltip:bottom="suggestionTooltip(cat)"
 											>
 												<cdx-info-chip
 													:icon="icons.language"
@@ -988,7 +988,7 @@ export default {
 
 			const globalCatToSites = new Map();
 			const redirectResolvedCatToSites = new Map();
-			const redirectResolvedCatToNames = new Map();
+			const foreignNamesByTitle = new Map();
 
 			try {
 				const sitesToProcess = this.selectedSites.slice();
@@ -1021,7 +1021,7 @@ export default {
 							globalCatToSites,
 							this.qid,
 							redirectResolvedCatToSites,
-							redirectResolvedCatToNames
+							foreignNamesByTitle
 						);
 					} else {
 						await fetchMembersSuggestions(
@@ -1031,7 +1031,7 @@ export default {
 							globalCatToSites,
 							this.qid,
 							redirectResolvedCatToSites,
-							redirectResolvedCatToNames
+							foreignNamesByTitle
 						);
 					}
 				};
@@ -1091,7 +1091,7 @@ export default {
 						mw.config.get('wgPageName').replace(/_/g, ' '),
 						templateAddedCats,
 						redirectResolvedCatToSites,
-						redirectResolvedCatToNames
+						foreignNamesByTitle
 					);
 					this.suggestions = suggestions;
 					this.existingRemovals = await buildExistingRemovals(
@@ -1112,7 +1112,7 @@ export default {
 						this.api,
 						new Set(currentPageCats),
 						redirectResolvedCatToSites,
-						redirectResolvedCatToNames
+						foreignNamesByTitle
 					);
 				}
 
@@ -1287,9 +1287,9 @@ export default {
 				: 'progressive';
 		},
 
-		redirectTooltip(item) {
-			const pairs = item.redirectNames || [];
-			if (!(item.redirectSites || []).length || pairs.length === 0) {
+		suggestionTooltip(item) {
+			const pairs = item.foreignNames || [];
+			if (pairs.length === 0) {
 				return null;
 			}
 			const byLang = new Map();
@@ -1299,8 +1299,9 @@ export default {
 				}
 				byLang.get(p.lang).push(p.name);
 			});
+			const isRedirect = item.redirectSites.length > 0 || Boolean(item.azRedirectFrom);
 			return (
-				'Y\u00f6nl\u0259ndirm\u0259y\u0259 g\u00f6r\u0259:\n' +
+				(isRedirect ? 'Y\u00f6nl\u0259ndirm\u0259y\u0259 g\u00f6r\u0259:\n' : '') +
 				Array.from(byLang, ([lang, names]) => lang + ' \u2192 ' + names.join(', ')).join(
 					'\n'
 				)
