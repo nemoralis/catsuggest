@@ -92,6 +92,86 @@ describe('buildParentCatsSuggestions', () => {
 		expect(titles).not.toContain('Kateqoriya:Ateistlər');
 	});
 
+	it('should drop a redirect candidate whose target is already a current category', async () => {
+		const mockGet = vi.fn(async (params) => {
+			const titles = params.titles || '';
+			if (titles.includes('Kateqoriya:Britaniya filosofları (redir)')) {
+				return {
+					query: {
+						redirects: [
+							{ from: 'Kateqoriya:Britaniya filosofları (redir)', to: 'Kateqoriya:Britaniya filosofları' },
+						],
+						pages: {
+							10: {
+								title: 'Kateqoriya:Britaniya filosofları',
+								categories: [{ title: 'Kateqoriya:Britaniya şəxsləri' }],
+							},
+						},
+					},
+				};
+			}
+			if (titles.includes('Kateqoriya:Şotlandiya filosofları')) {
+				return {
+					query: {
+						pages: {
+							1: {
+								title: 'Kateqoriya:Şotlandiya filosofları',
+								categories: [{ title: 'Kateqoriya:Britaniya filosofları' }],
+							},
+						},
+					},
+				};
+			}
+			return { query: { pages: {} } };
+		});
+
+		const rawResults = [
+			{ title: 'Kateqoriya:Britaniya filosofları (redir)', sources: ['en'] },
+			{ title: 'Kateqoriya:Şotlandiya filosofları', sources: ['en'] },
+		];
+		const currentCats = ['Kateqoriya:Britaniya filosofları'];
+		const { suggestions } = await buildParentCatsSuggestions(rawResults, currentCats, {
+			get: mockGet,
+		});
+		const titles = suggestions.map((s) => s.title);
+		expect(titles).not.toContain('Kateqoriya:Britaniya filosofları (redir)');
+		expect(titles).toContain('Kateqoriya:Şotlandiya filosofları');
+	});
+
+	it('should suggest a redirect candidate by its resolved target title', async () => {
+		const mockGet = vi.fn(async (params) => {
+			const titles = params.titles || '';
+			if (titles.includes('Kateqoriya:Şotlandiya filosofları (redir)')) {
+				return {
+					query: {
+						redirects: [
+							{ from: 'Kateqoriya:Şotlandiya filosofları (redir)', to: 'Kateqoriya:Şotlandiya filosofları' },
+						],
+						pages: {
+							10: {
+								title: 'Kateqoriya:Şotlandiya filosofları',
+								categories: [{ title: 'Kateqoriya:Britaniya filosofları' }],
+							},
+						},
+					},
+				};
+			}
+			return { query: { pages: {} } };
+		});
+
+		const rawResults = [{ title: 'Kateqoriya:Şotlandiya filosofları (redir)', sources: ['en'] }];
+		const currentCats = ['Kateqoriya:Ateistlər'];
+		const { suggestions } = await buildParentCatsSuggestions(rawResults, currentCats, {
+			get: mockGet,
+		});
+		expect(suggestions).toHaveLength(1);
+		expect(suggestions[0]).toMatchObject({
+			title: 'Kateqoriya:Şotlandiya filosofları',
+			sources: ['en'],
+			redirectNames: [],
+		});
+	});
+
 	it('should filter out suggestion that is a parent of another suggestion', async () => {
 		const mockGet = vi.fn(async (params) => {
 			const titles = params.titles || '';
@@ -692,6 +772,98 @@ describe('buildMembersSuggestions', () => {
 		const titles = suggestions.map((s) => s.title);
 		expect(titles).not.toContain('Kateqoriya:Ekzistensial risk');
 		expect(titles).toContain('Kateqoriya:İnsan nəslinin kəsilməsi');
+	});
+
+	it('should drop a redirect candidate whose target is already a member', async () => {
+		const mockGet = vi.fn(async (params) => {
+			const titles = params.titles || '';
+			if (titles.includes('İlqar İsmayılov (hərbçi)')) {
+				return {
+					query: {
+						redirects: [{ from: 'İlqar İsmayılov (hərbçi)', to: 'İlqar İsmayılov' }],
+						pages: {
+							11: {
+								title: 'İlqar İsmayılov',
+								categories: [{ title: 'Kateqoriya:Azərbaycanın Milli Qəhrəmanları' }],
+							},
+						},
+					},
+				};
+			}
+			return { query: { pages: {} } };
+		});
+
+		const rawResults = [{ title: 'İlqar İsmayılov (hərbçi)', sources: ['ru'] }];
+		const localData = {
+			members: new Set(['İlqar İsmayılov']),
+			subcats: new Set(),
+		};
+
+		const suggestions = await buildMembersSuggestions(rawResults, localData, { get: mockGet });
+		expect(suggestions).toEqual([]);
+	});
+
+	it('should offer a redirect candidate resolved to its target title when not a member', async () => {
+		const mockGet = vi.fn(async (params) => {
+			const titles = params.titles || '';
+			if (titles.includes('İlqar İsmayılov (hərbçi)')) {
+				return {
+					query: {
+						redirects: [{ from: 'İlqar İsmayılov (hərbçi)', to: 'İlqar İsmayılov' }],
+						pages: {
+							11: {
+								title: 'İlqar İsmayılov',
+								categories: [{ title: 'Kateqoriya:Azərbaycan xanəndələri' }],
+							},
+						},
+					},
+				};
+			}
+			return { query: { pages: {} } };
+		});
+
+		const rawResults = [{ title: 'İlqar İsmayılov (hərbçi)', sources: ['ru'] }];
+		const localData = {
+			members: new Set(),
+			subcats: new Set(['Kateqoriya:Azərbaycanın Milli Qəhrəmanları']),
+		};
+
+		const suggestions = await buildMembersSuggestions(rawResults, localData, { get: mockGet });
+		expect(suggestions).toHaveLength(1);
+		expect(suggestions[0]).toMatchObject({
+			title: 'İlqar İsmayılov',
+			sources: ['ru'],
+			redirectNames: [],
+		});
+	});
+
+	it('should drop a redirect candidate whose target is inside a current subcategory', async () => {
+		const mockGet = vi.fn(async (params) => {
+			const titles = params.titles || '';
+			if (titles.includes('İlqar İsmayılov (hərbçi)')) {
+				return {
+					query: {
+						redirects: [{ from: 'İlqar İsmayılov (hərbçi)', to: 'İlqar İsmayılov' }],
+						pages: {
+							11: {
+								title: 'İlqar İsmayılov',
+								categories: [{ title: 'Kateqoriya:Azərbaycanın Milli Qəhrəmanları' }],
+							},
+						},
+					},
+				};
+			}
+			return { query: { pages: {} } };
+		});
+
+		const rawResults = [{ title: 'İlqar İsmayılov (hərbçi)', sources: ['ru'] }];
+		const localData = {
+			members: new Set(),
+			subcats: new Set(['Kateqoriya:Azərbaycanın Milli Qəhrəmanları']),
+		};
+
+		const suggestions = await buildMembersSuggestions(rawResults, localData, { get: mockGet });
+		expect(suggestions).toEqual([]);
 	});
 
 	it('should propagate redirectSites from redirectResolvedCatToSites', async () => {

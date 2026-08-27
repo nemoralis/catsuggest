@@ -37,6 +37,24 @@ function collectRedirectNames(pairs) {
 	return result;
 }
 /**
+ * Follow azwiki-side redirect chains reported by the API (`query.redirects`,
+ * `from → to`, from the `redirects: true` title lookups) to find the canonical
+ * title for a candidate that arrived via a foreign langlink.
+ *
+ * @param {string} title - Candidate title (possibly a redirect)
+ * @param {Map<string, string>} redirectMap - Redirect resolution map (from → to)
+ * @return {string} Resolved title (or `title` when not a redirect)
+ */
+function resolveRedirectTitle(title, redirectMap) {
+	const visited = new Set();
+	let current = title;
+	while (redirectMap.has(current) && !visited.has(current)) {
+		visited.add(current);
+		current = redirectMap.get(current);
+	}
+	return current;
+}
+/**
  * Fetch parent categories of a page from a foreign wiki via langlinks.
  * Results are cached in mw.storage and added to globalCatToSites map.
  * Titles reached by following a redirect (targets in the API's `query.redirects`)
@@ -308,6 +326,8 @@ async function buildParentCatsSuggestions(
 
 	const parentMap = new Map();
 
+	const azwikiRedirectMap = new Map();
+
 	const fetchParentsForTitles = async (titles) => {
 		const toFetch = titles.filter((t) => !parentMap.has(t));
 		if (toFetch.length === 0) {
@@ -329,6 +349,9 @@ async function buildParentCatsSuggestions(
 
 		const queryResults = await Promise.all(batchPromises);
 		queryResults.forEach((res) => {
+			(res.redirects || []).forEach((r) => {
+				azwikiRedirectMap.set(r.from, r.to);
+			});
 			const pages = res.pages || {};
 			Object.values(pages).forEach((p) => {
 				const cats = p.categories ? p.categories.map((c) => c.title) : [];
@@ -410,26 +433,26 @@ async function buildParentCatsSuggestions(
 	};
 
 	const seenTitles = new Set();
-	let suggestions = rawResults
-		.filter((r) => {
-			if (EXCLUDED_TITLES.has(r.title)) {
-				return false;
-			}
-			if (
-				EXCLUDED_TITLE_KEYWORDS.some((kw) => r.title.includes(kw)) &&
-				!EXCLUDED_KEYWORD_ALLOW_PATTERNS.some((pattern) => pattern.test(r.title))
-			) {
-				return false;
-			}
-			const alreadyOnPage = currentCatsSet.has(r.title);
-			const isAncestor = allAncestors.has(r.title);
-			const isDescendant = isDescendantOfCurrentPage(r.title);
-			if (!alreadyOnPage && !isAncestor && !isDescendant && !seenTitles.has(r.title)) {
-				seenTitles.add(r.title);
-				return true;
-			}
+	let suggestions = [];
+	rawResults.forEach((r) => {
+		if (EXCLUDED_TITLES.has(r.title)) {
+			return;
+		}
+		if (
+			EXCLUDED_TITLE_KEYWORDS.some((kw) => r.title.includes(kw)) &&
+			!EXCLUDED_KEYWORD_ALLOW_PATTERNS.some((pattern) => pattern.test(r.title))
+		) {
+			return;
+		}
+		const resolvedTitle = resolveRedirectTitle(r.title, azwikiRedirectMap);
+		const alreadyOnPage = currentCatsSet.has(resolvedTitle);
+		const isAncestor = allAncestors.has(resolvedTitle);
+		const isDescendant = isDescendantOfCurrentPage(resolvedTitle);
+		if (alreadyOnPage || isAncestor || isDescendant || seenTitles.has(resolvedTitle)) {
 			log(
 				'Filtered out:',
+				resolvedTitle,
+				'| raw:',
 				r.title,
 				'| alreadyOnPage:',
 				alreadyOnPage,
@@ -438,16 +461,18 @@ async function buildParentCatsSuggestions(
 				'| isDescendant:',
 				isDescendant
 			);
-			return false;
-		})
-		.map((r) => ({
-			title: r.title,
+			return;
+		}
+		seenTitles.add(resolvedTitle);
+		suggestions.push({
+			title: resolvedTitle,
 			selected: true,
 			sources: r.sources,
 			redirectSites: Array.from(redirectResolvedCatToSites.get(r.title) || []),
 			redirectNames: collectRedirectNames(redirectResolvedCatToNames.get(r.title)),
 			removals: [],
-		}));
+		});
+	});
 
 	// Filter out suggestions that are a (direct) parent of another suggestion
 	const suggestionSet = new Set(suggestions.map((s) => s.title));
@@ -755,7 +780,11 @@ async function buildMembersSuggestions(
 	}
 
 	const catFetchResults = await Promise.all(catFetchPromises);
+	const azwikiRedirectMap = new Map();
 	catFetchResults.forEach((res) => {
+		(res.redirects || []).forEach((r) => {
+			azwikiRedirectMap.set(r.from, r.to);
+		});
 		const pages = res.pages || {};
 		Object.values(pages).forEach((p) => {
 			if (p.categories) {
@@ -768,41 +797,43 @@ async function buildMembersSuggestions(
 	});
 
 	const seenTitles = new Set();
-	const suggestions = rawResults
-		.filter((item) => {
-			if (EXCLUDED_TITLES.has(item.title)) {
-				return false;
-			}
-			const ns = new mw.Title(item.title).getNamespaceId();
-			if (!ALLOWED_NAMESPACES.includes(ns)) {
-				return false;
-			}
-
-			if (
-				EXCLUDED_TITLE_KEYWORDS.some((kw) => item.title.includes(kw)) &&
-				!EXCLUDED_KEYWORD_ALLOW_PATTERNS.some((pattern) => pattern.test(item.title))
-			) {
-				return false;
-			}
-			if (currentMembersSet.has(item.title) || seenTitles.has(item.title)) {
-				return false;
-			}
-			if (currentPageCats.has(item.title)) {
-				log('Filtered out parent of current page:', item.title);
-				return false;
-			}
-			seenTitles.add(item.title);
-			const itemCats = allPagesCats.get(item.title) || [];
-			return !itemCats.some((c) => currentSubcatsSet.has(c));
-		})
-		.map((item) => ({
-			title: item.title,
+	const suggestions = [];
+	rawResults.forEach((item) => {
+		if (EXCLUDED_TITLES.has(item.title)) {
+			return;
+		}
+		const ns = new mw.Title(item.title).getNamespaceId();
+		if (!ALLOWED_NAMESPACES.includes(ns)) {
+			return;
+		}
+		if (
+			EXCLUDED_TITLE_KEYWORDS.some((kw) => item.title.includes(kw)) &&
+			!EXCLUDED_KEYWORD_ALLOW_PATTERNS.some((pattern) => pattern.test(item.title))
+		) {
+			return;
+		}
+		const resolvedTitle = resolveRedirectTitle(item.title, azwikiRedirectMap);
+		if (currentMembersSet.has(resolvedTitle) || seenTitles.has(resolvedTitle)) {
+			return;
+		}
+		if (currentPageCats.has(resolvedTitle)) {
+			log('Filtered out parent of current page:', item.title);
+			return;
+		}
+		seenTitles.add(resolvedTitle);
+		const itemCats = allPagesCats.get(resolvedTitle) || [];
+		if (itemCats.some((c) => currentSubcatsSet.has(c))) {
+			return;
+		}
+		suggestions.push({
+			title: resolvedTitle,
 			selected: true,
 			sources: item.sources,
 			redirectSites: Array.from(redirectResolvedCatToSites.get(item.title) || []),
 			redirectNames: collectRedirectNames(redirectResolvedCatToNames.get(item.title)),
-			isCategory: item.title.startsWith(CATEGORY_PREFIX),
-		}));
+			isCategory: resolvedTitle.startsWith(CATEGORY_PREFIX),
+		});
+	});
 
 	return suggestions;
 }
