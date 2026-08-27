@@ -492,6 +492,47 @@ describe('buildExistingRemovals', () => {
 		const treeTitles = collect(removals[0].tree);
 		expect(treeTitles.sort()).toEqual(['Kateqoriya:A', 'Kateqoriya:B']);
 	});
+
+	it('should not remove a category when its only on-page descendant is a draft category', async () => {
+		// "Kateqoriya:Psixologiya qaralamaları" is a draft subcategory of
+		// "Kateqoriya:Psixologiya" (matched by the "qaralamalar" keyword). Draft and
+		// maintenance categories must never justify removing another category.
+		const parentMap = new Map([
+			['Kateqoriya:Psixologiya qaralamaları', ['Kateqoriya:Psixologiya']],
+			['Kateqoriya:Psixologiya', []],
+		]);
+		const mockGet = vi.fn();
+
+		const removals = await buildExistingRemovals(
+			['Kateqoriya:Psixologiya', 'Kateqoriya:Psixologiya qaralamaları'],
+			{ get: mockGet },
+			new Set(),
+			parentMap
+		);
+
+		expect(removals).toHaveLength(0);
+		expect(mockGet).not.toHaveBeenCalled();
+	});
+
+	it('should still remove a category when a real descendant is on the page alongside a draft', async () => {
+		const parentMap = new Map([
+			['Kateqoriya:Psixologiya qaralamaları', ['Kateqoriya:Psixologiya']],
+			['Kateqoriya:Psixologiya', ['Kateqoriya:Elm']],
+			['Kateqoriya:Elm', []],
+		]);
+		const mockGet = vi.fn();
+
+		const removals = await buildExistingRemovals(
+			['Kateqoriya:Elm', 'Kateqoriya:Psixologiya', 'Kateqoriya:Psixologiya qaralamaları'],
+			{ get: mockGet },
+			new Set(),
+			parentMap
+		);
+
+		expect(removals).toHaveLength(1);
+		expect(removals[0].title).toBe('Kateqoriya:Elm');
+		expect(removals[0].tree[0].title).toBe('Kateqoriya:Psixologiya');
+	});
 });
 
 describe('fetchMembersSuggestions', () => {

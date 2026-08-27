@@ -45,6 +45,21 @@ function hasEntries(container) {
 }
 
 /**
+ * Whether a category title is excluded from suggestions and removals:
+ * it contains an excluded keyword (drafts, maintenance, derived categories
+ * like birth-year or membership categories) unless allowlisted by pattern.
+ *
+ * @param {string} title
+ * @return {boolean}
+ */
+function isExcludedTitle(title) {
+	return (
+		EXCLUDED_TITLE_KEYWORDS.some((kw) => title.includes(kw)) &&
+		!EXCLUDED_KEYWORD_ALLOW_PATTERNS.some((pattern) => pattern.test(title))
+	);
+}
+
+/**
  * Follow azwiki-side redirect chains reported by the API (`query.redirects`,
  * `from → to`, from the `redirects: true` title lookups) to find the canonical
  * title for a candidate that arrived via a foreign langlink.
@@ -446,10 +461,7 @@ async function buildParentCatsSuggestions(
 		if (EXCLUDED_TITLES.has(r.title)) {
 			return;
 		}
-		if (
-			EXCLUDED_TITLE_KEYWORDS.some((kw) => r.title.includes(kw)) &&
-			!EXCLUDED_KEYWORD_ALLOW_PATTERNS.some((pattern) => pattern.test(r.title))
-		) {
+		if (isExcludedTitle(r.title)) {
 			return;
 		}
 		const resolvedTitle = resolveRedirectTitle(r.title, azwikiRedirectMap);
@@ -521,7 +533,8 @@ async function buildParentCatsSuggestions(
 				currentCatsSet.has(p) &&
 				!templateAddedCats.has(p) &&
 				!isSameCategoryIgnoringPlural(p, pageCategoryName) &&
-				!isRemovalExcluded(p)
+				!isRemovalExcluded(p) &&
+				!isExcludedTitle(p)
 			) {
 				s.removals.push({ title: p, selected: false });
 			}
@@ -556,9 +569,13 @@ async function buildExistingRemovals(
 	sharedParentMap = null,
 	currentPageTitle = ''
 ) {
-	const currentCatsSet = new Set(currentCats);
 	const parentMap = sharedParentMap || new Map();
 
+	// Draft, maintenance and other excluded categories (e.g. "Kateqoriya:Psixologiya
+	// qaralamaları") must never be removed themselves nor justify removing another
+	// category, so they are excluded from the redundancy analysis entirely.
+	const analysisCats = currentCats.filter((title) => !isExcludedTitle(title));
+	const currentCatsSet = new Set(analysisCats);
 	const toFetch = currentCats.filter((t) => !parentMap.has(t));
 	const batchPromises = [];
 	for (let i = 0; i < toFetch.length; i += BATCH_SIZE_API) {
@@ -597,13 +614,13 @@ async function buildExistingRemovals(
 	// "is X an ancestor of Y?" in O(1), and `onPageAncestors` records the BFS depth of
 	// every on-page ancestor so removal trees can be built without re-walking the graph.
 	const descendantMap = new Map();
-	currentCats.forEach((cat) => descendantMap.set(cat, new Set()));
+	analysisCats.forEach((cat) => descendantMap.set(cat, new Set()));
 
 	const ancestorSets = new Map();
 	const onPageAncestors = new Map();
 	const foundChains = new Map();
 
-	currentCats.forEach((cat) => {
+	analysisCats.forEach((cat) => {
 		const visited = new Set([cat]);
 		const pred = new Map();
 		const queue = [...(parentMap.get(cat) || [])];
@@ -650,7 +667,7 @@ async function buildExistingRemovals(
 	// the found node means the chain loops through a cycle in the category graph —
 	// the two categories are mutual ancestors, so the relationship is unreliable.
 	// Reject the whole chain (including the root: `slice(0, -1)`).
-	currentCats.forEach((cat) => {
+	analysisCats.forEach((cat) => {
 		foundChains.get(cat).forEach(({ node, chain }) => {
 			const cyclic = chain.slice(0, -1).some((p) => ancestorSets.get(node).has(p));
 			if (!cyclic) {
@@ -712,7 +729,7 @@ async function buildExistingRemovals(
 
 	const candidateMap = new Map();
 	const pageCategoryName = currentPageTitle ? CATEGORY_PREFIX + currentPageTitle : '';
-	currentCats.forEach((cat) => {
+	analysisCats.forEach((cat) => {
 		if (templateAddedCats.has(cat)) {
 			return;
 		}
@@ -823,10 +840,7 @@ async function buildMembersSuggestions(
 		if (!ALLOWED_NAMESPACES.includes(ns)) {
 			return;
 		}
-		if (
-			EXCLUDED_TITLE_KEYWORDS.some((kw) => item.title.includes(kw)) &&
-			!EXCLUDED_KEYWORD_ALLOW_PATTERNS.some((pattern) => pattern.test(item.title))
-		) {
+		if (isExcludedTitle(item.title)) {
 			return;
 		}
 		const resolvedTitle = resolveRedirectTitle(item.title, azwikiRedirectMap);
