@@ -1,4 +1,10 @@
-const { MAX_RETRIES, RETRY_BASE_DELAY_MS, USER_AGENT } = require('./constants.js');
+const {
+	MAX_RETRIES,
+	RETRY_BASE_DELAY_MS,
+	USER_AGENT,
+	BATCH_SIZE_API,
+	BATCH_SIZE_API_MAX,
+} = require('./constants.js');
 
 function sleep(ms) {
 	return new Promise((resolve) => {
@@ -173,6 +179,45 @@ function createForeignApi(apiHost) {
 	return new mw.ForeignApi(`https://${apiHost}/w/api.php`, { userAgent: USER_AGENT });
 }
 
+let cachedApiBatchSize = null;
+
+/**
+ * Resolve the maximum number of `titles=` a single local API request may carry,
+ * based on whether the user has the `apihighlimits` right (500 vs 50 titles).
+ * Detected once per session and memoized; safe to call in the gadget and in
+ * Node scripts (no `mw` dependency). On any API error the conservative 50 is used.
+ *
+ * @param {{ get: Function }} apiInstance - MediaWiki API object
+ * @return {Promise<number>}
+ */
+async function getApiBatchSize(apiInstance) {
+	if (cachedApiBatchSize !== null) {
+		return cachedApiBatchSize;
+	}
+	try {
+		const res = await retryApiCall(() =>
+			apiInstance.get({
+				action: 'query',
+				meta: 'userinfo',
+				uiprop: 'rights',
+				format: 'json',
+			})
+		);
+		const rights = res.query && res.query.userinfo && res.query.userinfo.rights;
+		cachedApiBatchSize =
+			Array.isArray(rights) && rights.includes('apihighlimits')
+				? BATCH_SIZE_API_MAX
+				: BATCH_SIZE_API;
+	} catch (_err) {
+		cachedApiBatchSize = BATCH_SIZE_API;
+	}
+	return cachedApiBatchSize;
+}
+
+function resetApiBatchSizeCache() {
+	cachedApiBatchSize = null;
+}
+
 module.exports = {
 	sleep,
 	retryApiCall,
@@ -181,4 +226,6 @@ module.exports = {
 	createLocalApi,
 	createWikidataApi,
 	createForeignApi,
+	getApiBatchSize,
+	resetApiBatchSizeCache,
 };

@@ -3,9 +3,9 @@
 
 const { Mwn } = require('mwn');
 const constants = require('../src/constants.js');
-const { fetchFullQuery } = require('../src/api.js');
+const { fetchFullQuery, getApiBatchSize } = require('../src/api.js');
 
-const { ANCESTOR_CHECK_DEPTH, BATCH_SIZE_API, CATEGORY_PREFIX } = constants;
+const { ANCESTOR_CHECK_DEPTH, CATEGORY_PREFIX } = constants;
 
 const bot = new Mwn({
 	apiUrl: 'https://az.wikipedia.org/w/api.php',
@@ -21,19 +21,22 @@ const parentMap = new Map();
 
 async function fetchParents(titles) {
 	const toFetch = titles.filter((t) => !parentMap.has(t));
-	for (let i = 0; i < toFetch.length; i += BATCH_SIZE_API) {
-		const batch = toFetch.slice(i, i + BATCH_SIZE_API);
-		const res = await fetchFullQuery(api, {
-			action: 'query',
-			titles: batch.join('|'),
-			prop: 'categories',
-			cllimit: 'max',
-		});
-		const pages = res.pages || {};
-		Object.values(pages).forEach((p) => {
-			const cats = p.categories ? p.categories.map((c) => c.title) : [];
-			parentMap.set(p.title, cats);
-		});
+	if (toFetch.length > 0) {
+		const batchSize = await getApiBatchSize(api);
+		for (let i = 0; i < toFetch.length; i += batchSize) {
+			const batch = toFetch.slice(i, i + batchSize);
+			const res = await fetchFullQuery(api, {
+				action: 'query',
+				titles: batch.join('|'),
+				prop: 'categories',
+				cllimit: 'max',
+			});
+			const pages = res.pages || {};
+			Object.values(pages).forEach((p) => {
+				const cats = p.categories ? p.categories.map((c) => c.title) : [];
+				parentMap.set(p.title, cats);
+			});
+		}
 	}
 	toFetch.forEach((t) => {
 		if (!parentMap.has(t)) {

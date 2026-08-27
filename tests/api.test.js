@@ -1,6 +1,6 @@
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 
-const { fetchFullQuery } = await import('../src/api.js');
+const { fetchFullQuery, getApiBatchSize, resetApiBatchSizeCache } = await import('../src/api.js');
 
 describe('fetchFullQuery', () => {
 	it('merges langlinks returned in continuation batches', async () => {
@@ -124,5 +124,67 @@ describe('fetchFullQuery', () => {
 		});
 
 		expect(result.pages['1'].categories.map((c) => c.title)).toEqual(['Category:A', 'Category:B']);
+	});
+});
+
+describe('getApiBatchSize', () => {
+	beforeEach(() => {
+		resetApiBatchSizeCache();
+	});
+
+	it('returns 500 when the user has the apihighlimits right and memoizes the result', async () => {
+		const api = {
+			get: vi.fn(async () => ({
+				query: { userinfo: { rights: ['read', 'edit', 'apihighlimits'] } },
+			})),
+		};
+
+		expect(await getApiBatchSize(api)).toBe(500);
+		expect(await getApiBatchSize(api)).toBe(500);
+		expect(api.get).toHaveBeenCalledTimes(1);
+	});
+
+	it('returns 50 when the user lacks the apihighlimits right', async () => {
+		const api = {
+			get: vi.fn(async () => ({
+				query: { userinfo: { rights: ['read', 'edit'] } },
+			})),
+		};
+
+		expect(await getApiBatchSize(api)).toBe(50);
+	});
+
+	it('returns 50 when the query does not expose userinfo rights', async () => {
+		const api = {
+			get: vi.fn(async () => ({ query: { pages: {} } })),
+		};
+
+		expect(await getApiBatchSize(api)).toBe(50);
+	});
+
+	it('falls back to 50 on an API error', async () => {
+		const api = {
+			get: vi.fn(async () => {
+				throw new Error('ExampleError');
+			}),
+		};
+
+		expect(await getApiBatchSize(api)).toBe(50);
+	});
+
+	it('re-detects after resetApiBatchSizeCache() clears the memo', async () => {
+		const api = {
+			get: vi.fn(async () => ({
+				query: { userinfo: { rights: ['apihighlimits'] } },
+			})),
+		};
+
+		await getApiBatchSize(api);
+		await getApiBatchSize(api);
+		expect(api.get).toHaveBeenCalledTimes(1);
+
+		resetApiBatchSizeCache();
+		await getApiBatchSize(api);
+		expect(api.get).toHaveBeenCalledTimes(2);
 	});
 });

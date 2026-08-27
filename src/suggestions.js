@@ -1,5 +1,4 @@
 const {
-	BATCH_SIZE_API,
 	CATEGORY_PREFIX,
 	CURRENT_WIKI,
 	CACHE_KEY_FOREIGN_PREFIX,
@@ -14,7 +13,7 @@ const {
 	ANCESTOR_CHECK_DEPTH,
 	log,
 } = require('./constants.js');
-const { fetchFullQuery } = require('./api.js');
+const { fetchFullQuery, getApiBatchSize } = require('./api.js');
 const { fetchPageContent } = require('./edit.js');
 /**
  * Deduplicate redirect-provenance pairs ({lang, name}) into a stable array.
@@ -357,9 +356,10 @@ async function buildParentCatsSuggestions(
 			return;
 		}
 
+		const batchSize = await getApiBatchSize(api);
 		const batchPromises = [];
-		for (let i = 0; i < toFetch.length; i += BATCH_SIZE_API) {
-			const batch = toFetch.slice(i, i + BATCH_SIZE_API);
+		for (let i = 0; i < toFetch.length; i += batchSize) {
+			const batch = toFetch.slice(i, i + batchSize);
 			batchPromises.push(
 				fetchFullQuery(api, {
 					action: 'query',
@@ -578,16 +578,19 @@ async function buildExistingRemovals(
 	const currentCatsSet = new Set(analysisCats);
 	const toFetch = currentCats.filter((t) => !parentMap.has(t));
 	const batchPromises = [];
-	for (let i = 0; i < toFetch.length; i += BATCH_SIZE_API) {
-		const batch = toFetch.slice(i, i + BATCH_SIZE_API);
-		batchPromises.push(
-			fetchFullQuery(api, {
-				action: 'query',
-				titles: batch.join('|'),
-				prop: 'categories',
-				cllimit: 'max',
-			})
-		);
+	if (toFetch.length > 0) {
+		const batchSize = await getApiBatchSize(api);
+		for (let i = 0; i < toFetch.length; i += batchSize) {
+			const batch = toFetch.slice(i, i + batchSize);
+			batchPromises.push(
+				fetchFullQuery(api, {
+					action: 'query',
+					titles: batch.join('|'),
+					prop: 'categories',
+					cllimit: 'max',
+				})
+			);
+		}
 	}
 	const queryResults = await Promise.all(batchPromises);
 	queryResults.forEach((res) => {
@@ -801,16 +804,19 @@ async function buildMembersSuggestions(
 	const allPagesCats = new Map();
 
 	const catFetchPromises = [];
-	for (let i = 0; i < suggestionTitles.length; i += BATCH_SIZE_API) {
-		const batch = suggestionTitles.slice(i, i + BATCH_SIZE_API);
-		catFetchPromises.push(
-			fetchFullQuery(api, {
-				action: 'query',
-				titles: batch.join('|'),
-				prop: 'categories',
-				cllimit: 'max',
-			})
-		);
+	if (suggestionTitles.length > 0) {
+		const batchSize = await getApiBatchSize(api);
+		for (let i = 0; i < suggestionTitles.length; i += batchSize) {
+			const batch = suggestionTitles.slice(i, i + batchSize);
+			catFetchPromises.push(
+				fetchFullQuery(api, {
+					action: 'query',
+					titles: batch.join('|'),
+					prop: 'categories',
+					cllimit: 'max',
+				})
+			);
+		}
 	}
 
 	const catFetchResults = await Promise.all(catFetchPromises);

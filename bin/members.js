@@ -44,7 +44,6 @@ global.mw = {
 
 const {
 	ALLOWED_NAMESPACES,
-	BATCH_SIZE_API,
 	CATEGORY_PREFIX,
 	EXCLUDED_SITES,
 	EXCLUDED_TITLE_KEYWORDS,
@@ -58,7 +57,7 @@ const {
 	SLEEP_BETWEEN_BATCHES_MS,
 	USER_AGENT,
 } = require('../src/constants.js');
-const { fetchFullQuery, sleep } = require('../src/api.js');
+const { fetchFullQuery, sleep, getApiBatchSize } = require('../src/api.js');
 const { fetchMembersSuggestions, buildMembersSuggestions } = require('../src/suggestions.js');
 
 const AZ_HOST = 'az.wikipedia.org';
@@ -270,18 +269,21 @@ async function classifyCandidates(azApi, candidates, localTree, currentPageCats)
 	});
 
 	const allPagesCats = new Map();
-	for (let i = 0; i < needCats.length; i += BATCH_SIZE_API) {
-		const batch = needCats.slice(i, i + BATCH_SIZE_API);
-		const res = await fetchFullQuery(azApi, {
-			action: 'query',
-			titles: batch.join('|'),
-			prop: 'categories',
-			cllimit: 'max',
-		});
-		const pages = res.pages || {};
-		Object.values(pages).forEach((p) => {
-			allPagesCats.set(p.title, p.categories ? p.categories.map((c) => c.title) : []);
-		});
+	if (needCats.length > 0) {
+		const batchSize = await getApiBatchSize(azApi);
+		for (let i = 0; i < needCats.length; i += batchSize) {
+			const batch = needCats.slice(i, i + batchSize);
+			const res = await fetchFullQuery(azApi, {
+				action: 'query',
+				titles: batch.join('|'),
+				prop: 'categories',
+				cllimit: 'max',
+			});
+			const pages = res.pages || {};
+			Object.values(pages).forEach((p) => {
+				allPagesCats.set(p.title, p.categories ? p.categories.map((c) => c.title) : []);
+			});
+		}
 	}
 
 	needCats.forEach((title) => {
@@ -300,14 +302,17 @@ async function classifyCandidates(azApi, candidates, localTree, currentPageCats)
 
 async function probeRedirects(azApi, titles) {
 	const redirects = new Map();
-	for (let i = 0; i < titles.length; i += BATCH_SIZE_API) {
-		const batch = titles.slice(i, i + BATCH_SIZE_API);
-		const res = await fetchFullQuery(azApi, {
-			action: 'query',
-			titles: batch.join('|'),
-			prop: 'info',
-		});
-		(res.redirects || []).forEach((r) => redirects.set(r.from, r.to));
+	if (titles.length > 0) {
+		const batchSize = await getApiBatchSize(azApi);
+		for (let i = 0; i < titles.length; i += batchSize) {
+			const batch = titles.slice(i, i + batchSize);
+			const res = await fetchFullQuery(azApi, {
+				action: 'query',
+				titles: batch.join('|'),
+				prop: 'info',
+			});
+			(res.redirects || []).forEach((r) => redirects.set(r.from, r.to));
+		}
 	}
 	return redirects;
 }
