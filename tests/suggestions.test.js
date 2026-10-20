@@ -22,6 +22,7 @@ const {
 	fetchMembersSuggestions,
 	fetchParentCatsSuggestions,
 } = await import('../src/suggestions.js');
+const { MAX_ANCESTOR_NODES_PER_LEVEL } = await import('../src/constants.js');
 
 describe('buildParentCatsSuggestions', () => {
 	beforeEach(() => {
@@ -100,7 +101,10 @@ describe('buildParentCatsSuggestions', () => {
 				return {
 					query: {
 						redirects: [
-							{ from: 'Kateqoriya:Britaniya filosofları (redir)', to: 'Kateqoriya:Britaniya filosofları' },
+							{
+								from: 'Kateqoriya:Britaniya filosofları (redir)',
+								to: 'Kateqoriya:Britaniya filosofları',
+							},
 						],
 						pages: {
 							10: {
@@ -146,7 +150,10 @@ describe('buildParentCatsSuggestions', () => {
 				return {
 					query: {
 						redirects: [
-							{ from: 'Kateqoriya:Şotlandiya filosofları (redir)', to: 'Kateqoriya:Şotlandiya filosofları' },
+							{
+								from: 'Kateqoriya:Şotlandiya filosofları (redir)',
+								to: 'Kateqoriya:Şotlandiya filosofları',
+							},
 						],
 						pages: {
 							10: {
@@ -160,7 +167,9 @@ describe('buildParentCatsSuggestions', () => {
 			return { query: { pages: {} } };
 		});
 
-		const rawResults = [{ title: 'Kateqoriya:Şotlandiya filosofları (redir)', sources: ['en'] }];
+		const rawResults = [
+			{ title: 'Kateqoriya:Şotlandiya filosofları (redir)', sources: ['en'] },
+		];
 		const currentCats = ['Kateqoriya:Ateistlər'];
 		const { suggestions } = await buildParentCatsSuggestions(rawResults, currentCats, {
 			get: mockGet,
@@ -257,6 +266,106 @@ describe('buildParentCatsSuggestions', () => {
 		expect(suggestions[0].removals).toHaveLength(1);
 		expect(suggestions[0].removals[0].title).toBe('Kateqoriya:Britaniya filosofları');
 		expect(suggestions[0].removals[0].selected).toBe(false);
+	});
+
+	it('should request a shared ancestor only once per level', async () => {
+		const mockGet = vi.fn(async (params) => {
+			if (params.meta === 'userinfo') {
+				return { query: { userinfo: { rights: ['apihighlimits'] } } };
+			}
+			const pages = {};
+			for (const title of (params.titles || '').split('|')) {
+				pages[title] = {
+					title,
+					categories:
+						title === 'Kateqoriya:A' || title === 'Kateqoriya:B'
+							? [{ title: 'Kateqoriya:SharedOne' }, { title: 'Kateqoriya:SharedTwo' }]
+							: [],
+				};
+			}
+			return { query: { pages } };
+		});
+
+		await buildParentCatsSuggestions([], ['Kateqoriya:A', 'Kateqoriya:B'], { get: mockGet });
+
+		const titleRequests = mockGet.mock.calls.map(([params]) => params.titles).filter(Boolean);
+		titleRequests.forEach((titles) => {
+			const parts = titles.split('|');
+			expect(new Set(parts).size).toBe(parts.length);
+		});
+		const sharedRequests = titleRequests.filter((titles) =>
+			titles.includes('Kateqoriya:SharedOne')
+		);
+		expect(sharedRequests).toHaveLength(1);
+		expect(sharedRequests[0].split('|').sort()).toEqual([
+			'Kateqoriya:SharedOne',
+			'Kateqoriya:SharedTwo',
+		]);
+	});
+
+	it('should cap the number of unique nodes fetched per ancestor level', async () => {
+		const parents = Array.from(
+			{ length: MAX_ANCESTOR_NODES_PER_LEVEL + 1 },
+			(_, i) => `Kateqoriya:P${i}`
+		);
+		const mockGet = vi.fn(async (params) => {
+			if (params.meta === 'userinfo') {
+				return { query: { userinfo: { rights: ['apihighlimits'] } } };
+			}
+			const pages = {};
+			for (const title of (params.titles || '').split('|')) {
+				pages[title] = {
+					title,
+					categories:
+						title === 'Kateqoriya:A'
+							? parents.map((parent) => ({ title: parent }))
+							: [],
+				};
+			}
+			return { query: { pages } };
+		});
+
+		const consoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
+		try {
+			await buildParentCatsSuggestions([], ['Kateqoriya:A'], { get: mockGet });
+		} finally {
+			consoleLog.mockRestore();
+		}
+
+		const requestedTitles = new Set();
+		mockGet.mock.calls.forEach(([params]) => {
+			if (params.titles) {
+				params.titles.split('|').forEach((title) => requestedTitles.add(title));
+			}
+		});
+		expect(requestedTitles.size).toBe(MAX_ANCESTOR_NODES_PER_LEVEL + 1);
+		expect(requestedTitles.has(parents[0])).toBe(true);
+		expect(requestedTitles.has(parents[parents.length - 1])).toBe(false);
+	});
+
+	it('should ignore a category that lists itself as its parent', async () => {
+		const mockGet = vi.fn(async (params) => {
+			if (params.meta === 'userinfo') {
+				return { query: { userinfo: { rights: ['apihighlimits'] } } };
+			}
+			const pages = {};
+			for (const title of (params.titles || '').split('|')) {
+				pages[title] = {
+					title,
+					categories:
+						title === 'Kateqoriya:A'
+							? [{ title: 'Kateqoriya:A' }, { title: 'Kateqoriya:B' }]
+							: [],
+				};
+			}
+			return { query: { pages } };
+		});
+
+		const { parentMap } = await buildParentCatsSuggestions([], ['Kateqoriya:A'], {
+			get: mockGet,
+		});
+
+		expect(parentMap.get('Kateqoriya:A')).toEqual(['Kateqoriya:B']);
 	});
 
 	it('should propagate foreign names from foreignNamesByTitle', async () => {
@@ -491,6 +600,30 @@ describe('buildExistingRemovals', () => {
 		const collect = (nodes) => nodes.flatMap((n) => [n.title, ...collect(n.children || [])]);
 		const treeTitles = collect(removals[0].tree);
 		expect(treeTitles.sort()).toEqual(['Kateqoriya:A', 'Kateqoriya:B']);
+	});
+
+	it('should not hang when an on-page category lists itself as a parent', async () => {
+		// Real-world shape on Tetraqrammaton: Xristian terminologiyası lists itself
+		// and Xristianlıq as parents. The self-edge previously created
+		// pred[Xristian terminologiyası] = itself, so reconstructing the chain for
+		// the on-page parent Xristianlıq looped forever.
+		const child = 'Kateqoriya:Xristian terminologiyası';
+		const parent = 'Kateqoriya:Xristianlıq';
+		const parentMap = new Map([
+			[child, [child, parent]],
+			[parent, []],
+		]);
+		const mockGet = vi.fn();
+
+		const removals = await buildExistingRemovals(
+			[child, parent],
+			{ get: mockGet },
+			new Set(),
+			parentMap
+		);
+
+		expect(mockGet).not.toHaveBeenCalled();
+		expect(removals.map((r) => r.title)).toEqual([parent]);
 	});
 
 	it('should not remove a category when its only on-page descendant is a draft category', async () => {
@@ -859,7 +992,9 @@ describe('buildMembersSuggestions', () => {
 						pages: {
 							11: {
 								title: 'İlqar İsmayılov',
-								categories: [{ title: 'Kateqoriya:Azərbaycanın Milli Qəhrəmanları' }],
+								categories: [
+									{ title: 'Kateqoriya:Azərbaycanın Milli Qəhrəmanları' },
+								],
 							},
 						},
 					},
@@ -925,7 +1060,9 @@ describe('buildMembersSuggestions', () => {
 						pages: {
 							11: {
 								title: 'İlqar İsmayılov',
-								categories: [{ title: 'Kateqoriya:Azərbaycanın Milli Qəhrəmanları' }],
+								categories: [
+									{ title: 'Kateqoriya:Azərbaycanın Milli Qəhrəmanları' },
+								],
 							},
 						},
 					},
@@ -1043,9 +1180,7 @@ describe('buildMembersSuggestions', () => {
 			members: new Set(),
 			subcats: new Set(),
 		};
-		const redirectResolvedCatToSites = new Map([
-			['İlqar İsmayılov (hərbçi)', new Set(['ru'])],
-		]);
+		const redirectResolvedCatToSites = new Map([['İlqar İsmayılov (hərbçi)', new Set(['ru'])]]);
 		const foreignNamesByTitle = new Map([
 			['İlqar İsmayılov (hərbçi)', [{ lang: 'ru', name: 'Исмаилов, Ильгар Сади оглы' }]],
 		]);

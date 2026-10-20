@@ -14,7 +14,9 @@ describe('fetchFullQuery', () => {
 							1: {
 								pageid: 1,
 								title: 'Category:2002 births',
-								langlinks: [{ lang: 'az', '*': 'Kateqoriya:2002-ci ildə doğulanlar' }],
+								langlinks: [
+									{ lang: 'az', '*': 'Kateqoriya:2002-ci ildə doğulanlar' },
+								],
 							},
 							2: { pageid: 2, title: 'Category:2026 FIFA World Cup players' },
 						},
@@ -27,7 +29,10 @@ describe('fetchFullQuery', () => {
 								pageid: 2,
 								title: 'Category:2026 FIFA World Cup players',
 								langlinks: [
-									{ lang: 'az', '*': 'Kateqoriya:2026 FİFA Dünya Kuboku oyunçuları' },
+									{
+										lang: 'az',
+										'*': 'Kateqoriya:2026 FİFA Dünya Kuboku oyunçuları',
+									},
 								],
 							},
 						},
@@ -123,7 +128,58 @@ describe('fetchFullQuery', () => {
 			prop: 'categories',
 		});
 
-		expect(result.pages['1'].categories.map((c) => c.title)).toEqual(['Category:A', 'Category:B']);
+		expect(result.pages['1'].categories.map((c) => c.title)).toEqual([
+			'Category:A',
+			'Category:B',
+		]);
+	});
+
+	it('uses a read-only POST for oversized queries when post is available', async () => {
+		const api = {
+			get: vi.fn(),
+			post: vi.fn().mockResolvedValue({
+				query: {
+					pages: {
+						1: { pageid: 1, title: 'Page' },
+					},
+				},
+			}),
+		};
+
+		const result = await fetchFullQuery(api, {
+			action: 'query',
+			titles: 'x'.repeat(8000),
+			prop: 'categories',
+		});
+
+		expect(api.get).not.toHaveBeenCalled();
+		expect(api.post).toHaveBeenCalledTimes(1);
+		const [params, ajaxOptions] = api.post.mock.calls[0];
+		expect(params.titles).toHaveLength(8000);
+		expect(ajaxOptions.headers['Promise-Non-Write-API-Action']).toBe('true');
+		expect(result.pages['1'].title).toBe('Page');
+	});
+
+	it('keeps using GET for small queries when post is available', async () => {
+		const api = {
+			get: vi.fn().mockResolvedValue({
+				query: {
+					pages: {
+						1: { pageid: 1, title: 'Page' },
+					},
+				},
+			}),
+			post: vi.fn(),
+		};
+
+		await fetchFullQuery(api, {
+			action: 'query',
+			titles: 'Kateqoriya:A',
+			prop: 'categories',
+		});
+
+		expect(api.get).toHaveBeenCalledTimes(1);
+		expect(api.post).not.toHaveBeenCalled();
 	});
 });
 

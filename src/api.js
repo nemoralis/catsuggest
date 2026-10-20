@@ -6,10 +6,32 @@ const {
 	BATCH_SIZE_API_MAX,
 } = require('./constants.js');
 
+const MAX_GET_DATA_LENGTH = 7000;
+
 function sleep(ms) {
 	return new Promise((resolve) => {
 		setTimeout(resolve, ms);
 	});
+}
+
+/**
+ * Send an API query, explicitly using POST when the serialized parameters would be
+ * long enough for `mw.Api` to convert the GET into a read-only POST anyway. Doing
+ * this ourselves avoids the "request method changed from GET to POST" warning while
+ * preserving the same read-only POST semantics.
+ *
+ * @param {Object} apiInstance - API object with get(), and optionally post()
+ * @param {Object} params
+ * @return {Promise|jQuery.Promise}
+ */
+function queryApi(apiInstance, params) {
+	const dataLength = new URLSearchParams(params).toString().length;
+	if (typeof apiInstance.post === 'function' && dataLength > MAX_GET_DATA_LENGTH) {
+		return apiInstance.post(params, {
+			headers: { 'Promise-Non-Write-API-Action': 'true' },
+		});
+	}
+	return apiInstance.get(params);
 }
 
 async function retryApiCall(fn, retries) {
@@ -145,7 +167,7 @@ async function fetchFullQuery(apiInstance, params) {
 		if (continueToken) {
 			Object.assign(reqParams, continueToken);
 		}
-		const resp = await retryApiCall(() => apiInstance.get(reqParams));
+		const resp = await retryApiCall(() => queryApi(apiInstance, reqParams));
 		if (resp.query) {
 			for (const key in resp.query) {
 				if (Array.isArray(resp.query[key])) {

@@ -16,6 +16,8 @@ const MAX_DEPTH2_SUBCATS = 50;
 const MAX_DEPTH1_SUBCATS = 100;
 const CONFIRM_BATCH_THRESHOLD = 5;
 const ANCESTOR_CHECK_DEPTH = 4;
+// Safety valve for dense/cyclic category graphs; normal pages stay well below this.
+const MAX_ANCESTOR_NODES_PER_LEVEL = 1000;
 const ENABLE_EDIT_GROUP_LINKS = false;
 const DEBUG = true;
 const DEV_MODE = true;
@@ -113,6 +115,7 @@ module.exports = {
 	MAX_DEPTH1_SUBCATS,
 	CONFIRM_BATCH_THRESHOLD,
 	ANCESTOR_CHECK_DEPTH,
+	MAX_ANCESTOR_NODES_PER_LEVEL,
 	ENABLE_EDIT_GROUP_LINKS,
 	DEBUG,
 	DEV_MODE,

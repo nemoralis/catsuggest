@@ -11,6 +11,8 @@ const {
 	isSameCategoryIgnoringPlural,
 	ALLOWED_NAMESPACES,
 	ANCESTOR_CHECK_DEPTH,
+	FETCH_CONCURRENCY,
+	MAX_ANCESTOR_NODES_PER_LEVEL,
 	log,
 } = require('./constants.js');
 const { fetchFullQuery, getApiBatchSize } = require('./api.js');
@@ -56,6 +58,57 @@ function isExcludedTitle(title) {
 		EXCLUDED_TITLE_KEYWORDS.some((kw) => title.includes(kw)) &&
 		!EXCLUDED_KEYWORD_ALLOW_PATTERNS.some((pattern) => pattern.test(title))
 	);
+}
+
+/**
+ * Parent category titles for an API page, excluding a self-parent edge.
+ * MediaWiki permits a category to list itself; keeping that edge would make
+ * every graph traversal treat the category as its own ancestor.
+ *
+ * @param {Object} page - API page object with title and optional categories
+ * @return {string[]}
+ */
+function getParentTitles(page) {
+	return (page.categories || []).map((c) => c.title).filter((title) => title !== page.title);
+}
+
+/**
+ * Fetch parent categories for unique titles in API-sized batches, running a limited
+ * number of batches concurrently. Duplicate titles are removed before batching so a
+ * shared parent is never requested once per child.
+ *
+ * @param {Object} api - API object with get(), and optionally post()
+ * @param {string[]} titles
+ * @return {Promise<Object[]>} Query results, one per batch
+ */
+async function fetchCategoriesForTitles(api, titles) {
+	const uniqueTitles = [...new Set(titles)];
+	if (uniqueTitles.length === 0) {
+		return [];
+	}
+
+	const batchSize = await getApiBatchSize(api);
+	const maxTitlesPerWave = batchSize * FETCH_CONCURRENCY;
+	const results = [];
+
+	for (let i = 0; i < uniqueTitles.length; i += maxTitlesPerWave) {
+		const waveEnd = Math.min(i + maxTitlesPerWave, uniqueTitles.length);
+		const batchPromises = [];
+		for (let j = i; j < waveEnd; j += batchSize) {
+			const batch = uniqueTitles.slice(j, Math.min(j + batchSize, waveEnd));
+			batchPromises.push(
+				fetchFullQuery(api, {
+					action: 'query',
+					titles: batch.join('|'),
+					prop: 'categories',
+					cllimit: 'max',
+				})
+			);
+		}
+		results.push(...(await Promise.all(batchPromises)));
+	}
+
+	return results;
 }
 
 /**
@@ -351,34 +404,19 @@ async function buildParentCatsSuggestions(
 	const azwikiRedirectMap = new Map();
 
 	const fetchParentsForTitles = async (titles) => {
-		const toFetch = titles.filter((t) => !parentMap.has(t));
+		const toFetch = [...new Set(titles)].filter((t) => !parentMap.has(t));
 		if (toFetch.length === 0) {
 			return;
 		}
 
-		const batchSize = await getApiBatchSize(api);
-		const batchPromises = [];
-		for (let i = 0; i < toFetch.length; i += batchSize) {
-			const batch = toFetch.slice(i, i + batchSize);
-			batchPromises.push(
-				fetchFullQuery(api, {
-					action: 'query',
-					titles: batch.join('|'),
-					prop: 'categories',
-					cllimit: 'max',
-				})
-			);
-		}
-
-		const queryResults = await Promise.all(batchPromises);
+		const queryResults = await fetchCategoriesForTitles(api, toFetch);
 		queryResults.forEach((res) => {
 			(res.redirects || []).forEach((r) => {
 				azwikiRedirectMap.set(r.from, r.to);
 			});
 			const pages = res.pages || {};
 			Object.values(pages).forEach((p) => {
-				const cats = p.categories ? p.categories.map((c) => c.title) : [];
-				parentMap.set(p.title, cats);
+				parentMap.set(p.title, getParentTitles(p));
 			});
 		});
 
@@ -398,28 +436,36 @@ async function buildParentCatsSuggestions(
 
 	await fetchParentsForTitles(suggestionTitles);
 
-	let currentLevel = currentCats.slice();
+	let currentLevel = [...new Set(currentCats)];
 	const allAncestors = new Set();
 
 	for (let depth = 0; depth < ANCESTOR_CHECK_DEPTH; depth++) {
 		log('Ancestor walk depth', depth, '| checking', currentLevel.length, 'nodes');
 		await fetchParentsForTitles(currentLevel);
 
-		const nextLevel = [];
+		const nextLevel = new Set();
+		let truncated = false;
 		currentLevel.forEach((title) => {
 			const parents = parentMap.get(title) || [];
 			parents.forEach((p) => {
 				allAncestors.add(p);
 				if (!parentMap.has(p)) {
-					nextLevel.push(p);
+					if (nextLevel.size < MAX_ANCESTOR_NODES_PER_LEVEL) {
+						nextLevel.add(p);
+					} else if (!nextLevel.has(p)) {
+						truncated = true;
+					}
 				}
 			});
 		});
 
-		if (nextLevel.length === 0) {
+		if (nextLevel.size === 0) {
 			break;
 		}
-		currentLevel = nextLevel;
+		if (truncated) {
+			log('Ancestor walk truncated at depth', depth, '| limit', MAX_ANCESTOR_NODES_PER_LEVEL);
+		}
+		currentLevel = [...nextLevel];
 	}
 
 	log('Ancestors of current cats:', Array.from(allAncestors));
@@ -432,22 +478,21 @@ async function buildParentCatsSuggestions(
 			return false;
 		}
 		const normalizedCurrent = currentPageTitle.replace(/_/g, ' ');
-		const visited = new Set();
+		// Mark nodes as visited when they are queued, not when they are dequeued.
+		// Otherwise a node shared by many branches can be queued thousands of times.
+		const visited = new Set([title]);
 		const queue = [title];
 		let qi = 0;
 		while (qi < queue.length) {
 			const node = queue[qi];
 			qi++;
-			if (visited.has(node)) {
-				continue;
-			}
-			visited.add(node);
 			const parents = parentMap.get(node) || [];
 			for (const p of parents) {
 				if (p === normalizedCurrent || p.replace(/_/g, ' ') === normalizedCurrent) {
 					return true;
 				}
 				if (!visited.has(p)) {
+					visited.add(p);
 					queue.push(p);
 				}
 			}
@@ -574,30 +619,15 @@ async function buildExistingRemovals(
 	// Draft, maintenance and other excluded categories (e.g. "Kateqoriya:Psixologiya
 	// qaralamaları") must never be removed themselves nor justify removing another
 	// category, so they are excluded from the redundancy analysis entirely.
-	const analysisCats = currentCats.filter((title) => !isExcludedTitle(title));
+	const uniqueCats = [...new Set(currentCats)];
+	const analysisCats = uniqueCats.filter((title) => !isExcludedTitle(title));
 	const currentCatsSet = new Set(analysisCats);
-	const toFetch = currentCats.filter((t) => !parentMap.has(t));
-	const batchPromises = [];
-	if (toFetch.length > 0) {
-		const batchSize = await getApiBatchSize(api);
-		for (let i = 0; i < toFetch.length; i += batchSize) {
-			const batch = toFetch.slice(i, i + batchSize);
-			batchPromises.push(
-				fetchFullQuery(api, {
-					action: 'query',
-					titles: batch.join('|'),
-					prop: 'categories',
-					cllimit: 'max',
-				})
-			);
-		}
-	}
-	const queryResults = await Promise.all(batchPromises);
+	const toFetch = uniqueCats.filter((t) => !parentMap.has(t));
+	const queryResults = await fetchCategoriesForTitles(api, toFetch);
 	queryResults.forEach((res) => {
 		const pages = res.pages || {};
 		Object.values(pages).forEach((p) => {
-			const cats = p.categories ? p.categories.map((c) => c.title) : [];
-			parentMap.set(p.title, cats);
+			parentMap.set(p.title, getParentTitles(p));
 		});
 	});
 	toFetch.forEach((t) => {
@@ -626,8 +656,11 @@ async function buildExistingRemovals(
 	analysisCats.forEach((cat) => {
 		const visited = new Set([cat]);
 		const pred = new Map();
-		const queue = [...(parentMap.get(cat) || [])];
-		queue.forEach((p) => pred.set(p, cat));
+		// Exclude the root category itself: a self-parent edge would create
+		// pred[cat] = cat and make chain reconstruction loop forever.
+		const directParents = [...new Set(parentMap.get(cat) || [])].filter((p) => p !== cat);
+		const queue = directParents;
+		directParents.forEach((p) => pred.set(p, cat));
 		const depths = queue.map(() => 0);
 		const onPage = new Map();
 		const chains = [];
@@ -642,13 +675,24 @@ async function buildExistingRemovals(
 			visited.add(node);
 			if (currentCatsSet.has(node) && node !== cat) {
 				const chain = [node];
+				const seen = new Set(chain);
 				let cur = node;
+				let predCycle = false;
 				while (pred.has(cur)) {
 					cur = pred.get(cur);
+					if (seen.has(cur)) {
+						predCycle = true;
+						break;
+					}
+					seen.add(cur);
 					chain.unshift(cur);
 				}
-				chains.push({ node, chain });
 				onPage.set(node, nodeDepth);
+				if (predCycle) {
+					log('Ignoring cyclic ancestor chain:', cat, '→', node);
+				} else {
+					chains.push({ node, chain });
+				}
 			}
 			if (nodeDepth < ANCESTOR_CHECK_DEPTH) {
 				const parents = parentMap.get(node) || [];
@@ -803,23 +847,7 @@ async function buildMembersSuggestions(
 	const suggestionTitles = rawResults.map((r) => r.title);
 	const allPagesCats = new Map();
 
-	const catFetchPromises = [];
-	if (suggestionTitles.length > 0) {
-		const batchSize = await getApiBatchSize(api);
-		for (let i = 0; i < suggestionTitles.length; i += batchSize) {
-			const batch = suggestionTitles.slice(i, i + batchSize);
-			catFetchPromises.push(
-				fetchFullQuery(api, {
-					action: 'query',
-					titles: batch.join('|'),
-					prop: 'categories',
-					cllimit: 'max',
-				})
-			);
-		}
-	}
-
-	const catFetchResults = await Promise.all(catFetchPromises);
+	const catFetchResults = await fetchCategoriesForTitles(api, suggestionTitles);
 	const azwikiRedirectMap = new Map();
 	catFetchResults.forEach((res) => {
 		(res.redirects || []).forEach((r) => {
