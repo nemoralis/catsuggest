@@ -73,6 +73,20 @@ function getParentTitles(page) {
 }
 
 /**
+ * Whether a resolved suggestion is the category page currently being edited.
+ *
+ * @param {string} title - Resolved suggestion title
+ * @param {string} currentCategoryTitle - Current category title, or empty for non-category pages
+ * @return {boolean}
+ */
+function isCurrentCategoryTitle(title, currentCategoryTitle) {
+	if (!currentCategoryTitle) {
+		return false;
+	}
+	return title.replace(/_/g, ' ') === currentCategoryTitle.replace(/_/g, ' ');
+}
+
+/**
  * Fetch parent categories for unique titles in API-sized batches, running a limited
  * number of batches concurrently. Duplicate titles are removed before batching so a
  * shared parent is never requested once per child.
@@ -385,6 +399,7 @@ function fetchMembersSuggestions(
  * @param {Set<string>} templateAddedCats - Categories added via templates (excluded from removals)
  * @param {Map} [redirectResolvedCatToSites] - Titles reached via foreign-wiki redirect resolution
  * @param {Map} [foreignNamesByTitle] - Foreign title(s) per azwiki title (array of {lang, name})
+ * @param {string} [currentCategoryTitle] - Current category title when editing a category page
  * @return {Promise<{suggestions: Array, parentMap: Map}>}
  */
 async function buildParentCatsSuggestions(
@@ -394,7 +409,8 @@ async function buildParentCatsSuggestions(
 	currentPageTitle,
 	templateAddedCats = new Set(),
 	redirectResolvedCatToSites = new Map(),
-	foreignNamesByTitle = new Map()
+	foreignNamesByTitle = new Map(),
+	currentCategoryTitle = ''
 ) {
 	const currentCatsSet = new Set(currentCats);
 	const suggestionTitles = rawResults.map((r) => r.title);
@@ -510,6 +526,10 @@ async function buildParentCatsSuggestions(
 			return;
 		}
 		const resolvedTitle = resolveRedirectTitle(r.title, azwikiRedirectMap);
+		if (isCurrentCategoryTitle(resolvedTitle, currentCategoryTitle)) {
+			log('Filtered out current category:', resolvedTitle);
+			return;
+		}
 		const alreadyOnPage = currentCatsSet.has(resolvedTitle);
 		const isAncestor = allAncestors.has(resolvedTitle);
 		const isDescendant = isDescendantOfCurrentPage(resolvedTitle);
@@ -833,6 +853,7 @@ async function buildExistingRemovals(
  * @param {Set<string>} currentPageCats - Categories the current page belongs to (to filter out parents)
  * @param {Map} [redirectResolvedCatToSites] - Titles reached via foreign-wiki redirect resolution
  * @param {Map} [foreignNamesByTitle] - Foreign title(s) per azwiki title (array of {lang, name})
+ * @param {string} [currentCategoryTitle] - Current category title when editing a category page
  * @return {Promise<Array<{title: string, selected: boolean, sources: string[], redirectSites: string[], foreignNames: Array, isCategory: boolean}>>}
  */
 async function buildMembersSuggestions(
@@ -841,7 +862,8 @@ async function buildMembersSuggestions(
 	api,
 	currentPageCats = new Set(),
 	redirectResolvedCatToSites = new Map(),
-	foreignNamesByTitle = new Map()
+	foreignNamesByTitle = new Map(),
+	currentCategoryTitle = ''
 ) {
 	const { members: currentMembersSet, subcats: currentSubcatsSet } = localData;
 	const suggestionTitles = rawResults.map((r) => r.title);
@@ -878,6 +900,10 @@ async function buildMembersSuggestions(
 			return;
 		}
 		const resolvedTitle = resolveRedirectTitle(item.title, azwikiRedirectMap);
+		if (isCurrentCategoryTitle(resolvedTitle, currentCategoryTitle)) {
+			log('Filtered out current category:', resolvedTitle);
+			return;
+		}
 		if (currentMembersSet.has(resolvedTitle) || seenTitles.has(resolvedTitle)) {
 			return;
 		}

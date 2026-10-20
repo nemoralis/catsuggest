@@ -368,6 +368,43 @@ describe('buildParentCatsSuggestions', () => {
 		expect(parentMap.get('Kateqoriya:A')).toEqual(['Kateqoriya:B']);
 	});
 
+	it('should not suggest the current category page itself', async () => {
+		const mockGet = vi.fn(async () => ({ query: { pages: {} } }));
+		const rawResults = [
+			{ title: 'Kateqoriya:Xristian terminologiyası', sources: ['en'] },
+			{ title: 'Kateqoriya:Xristianlıq', sources: ['en'] },
+		];
+
+		const { suggestions } = await buildParentCatsSuggestions(
+			rawResults,
+			[],
+			{ get: mockGet },
+			'Xristian terminologiyası',
+			new Set(),
+			new Map(),
+			new Map(),
+			'Kateqoriya:Xristian terminologiyası'
+		);
+
+		expect(suggestions.map((s) => s.title)).toEqual(['Kateqoriya:Xristianlıq']);
+	});
+
+	it('should still suggest a category matching the current article title', async () => {
+		const mockGet = vi.fn(async () => ({ query: { pages: {} } }));
+		const rawResults = [{ title: 'Kateqoriya:Xristian terminologiyası', sources: ['en'] }];
+
+		const { suggestions } = await buildParentCatsSuggestions(
+			rawResults,
+			[],
+			{ get: mockGet },
+			'Xristian terminologiyası'
+		);
+
+		expect(suggestions.map((s) => s.title)).toEqual([
+			'Kateqoriya:Xristian terminologiyası',
+		]);
+	});
+
 	it('should propagate foreign names from foreignNamesByTitle', async () => {
 		const mockGet = vi.fn(async () => ({ query: { pages: {} } }));
 
@@ -931,6 +968,30 @@ describe('fetchParentCatsSuggestions', () => {
 });
 
 describe('buildMembersSuggestions', () => {
+	it('should not suggest the current category as a member of itself', async () => {
+		const mockGet = vi.fn(async () => ({ query: { pages: {} } }));
+		const rawResults = [
+			{ title: 'Kateqoriya:Xristian terminologiyası', sources: ['en'] },
+			{ title: 'Kateqoriya:Xristianlıq', sources: ['en'] },
+		];
+		const localData = {
+			members: new Set(),
+			subcats: new Set(),
+		};
+
+		const suggestions = await buildMembersSuggestions(
+			rawResults,
+			localData,
+			{ get: mockGet },
+			new Set(),
+			new Map(),
+			new Map(),
+			'Kateqoriya:Xristian terminologiyası'
+		);
+
+		expect(suggestions.map((s) => s.title)).toEqual(['Kateqoriya:Xristianlıq']);
+	});
+
 	it('should filter out parent categories of the current page', async () => {
 		const mockGet = vi.fn(async (params) => {
 			const titles = params.titles || '';

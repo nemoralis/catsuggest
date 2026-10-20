@@ -1072,6 +1072,8 @@ export default {
 			const globalCatToSites = new Map();
 			const redirectResolvedCatToSites = new Map();
 			const foreignNamesByTitle = new Map();
+			const currentPageTitle = mw.config.get('wgTitle').replace(/_/g, ' ');
+			const currentCategoryTitle = this.isCatPage ? CATEGORY_PREFIX + currentPageTitle : '';
 
 			try {
 				const sitesToProcess = this.selectedSites.slice();
@@ -1171,10 +1173,11 @@ export default {
 						resolvedResults,
 						localData,
 						this.api,
-						mw.config.get('wgPageName').replace(/_/g, ' '),
+						currentPageTitle,
 						templateAddedCats,
 						redirectResolvedCatToSites,
-						foreignNamesByTitle
+						foreignNamesByTitle,
+						currentCategoryTitle
 					);
 					this.suggestions = suggestions;
 					this.existingRemovals = await buildExistingRemovals(
@@ -1182,7 +1185,7 @@ export default {
 						this.api,
 						templateAddedCats,
 						parentMap,
-						mw.config.get('wgPageName').replace(/_/g, ' ')
+						currentPageTitle
 					);
 					this.existingRemovals.forEach(
 						(rem) => (rem.flatTree = this.flattenTree(rem.tree, 0))
@@ -1195,7 +1198,8 @@ export default {
 						this.api,
 						new Set(currentPageCats),
 						redirectResolvedCatToSites,
-						foreignNamesByTitle
+						foreignNamesByTitle,
+						currentCategoryTitle
 					);
 				}
 
@@ -1251,7 +1255,12 @@ export default {
 		},
 
 		async addParentCategories() {
-			const titlesToAdd = this.suggestions.filter((s) => s.selected).map((s) => s.title);
+			const currentPageTitle = mw.config.get('wgTitle').replace(/_/g, ' ');
+			const currentCategoryTitle = this.isCatPage ? CATEGORY_PREFIX + currentPageTitle : '';
+			const titlesToAdd = this.suggestions
+				.filter((s) => s.selected)
+				.map((s) => s.title)
+				.filter((title) => title !== currentCategoryTitle);
 			const removalSet = new Set();
 			this.suggestions.forEach((s) => {
 				(s.removals || []).forEach((r) => {
