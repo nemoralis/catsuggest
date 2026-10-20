@@ -3,6 +3,7 @@ const {
 	CACHE_TTL_PROCESSED_PAGES,
 	MAX_PROCESSED_PAGES,
 	CACHE_KEY_SITE_METADATA,
+	CACHE_KEY_TREE_PREFIX,
 	CACHE_TTL_LANGUAGES,
 	EXCLUDED_TITLE_KEYWORDS,
 	EXCLUDED_KEYWORD_ALLOW_PATTERNS,
@@ -63,6 +64,19 @@ function markPageAsProcessed(pageId) {
 	}
 }
 
+/**
+ * Drop the cached category-member tree for a page after editing its members.
+ *
+ * @param {number} pageId
+ * @return {void}
+ */
+function clearMembersCache(pageId) {
+	if (!pageId) {
+		return;
+	}
+	mw.storage.remove(CACHE_KEY_TREE_PREFIX + pageId);
+}
+
 async function loadSiteMetadata(api) {
 	const cached = mw.storage.get(CACHE_KEY_SITE_METADATA);
 	if (cached) {
@@ -118,6 +132,7 @@ function isCatPageExcluded(pageName) {
 module.exports = {
 	isPageProcessed,
 	markPageAsProcessed,
+	clearMembersCache,
 	loadSiteMetadata,
 	isCatPageExcluded,
 };

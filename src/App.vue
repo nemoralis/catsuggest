@@ -49,14 +49,11 @@
 					<cdx-message type="warning">
 						<strong>Bu kateqoriya artıq işlənib.</strong><br />
 						Siz bu kateqoriyada təklif axtarış edib nəticələri əlavə etmisiniz.
-						Keşlənmiş məlumatlar köhnəlmiş ola bilər və eyni səhifələrə təkrar
-						kateqoriya əlavə etməyinizə səbəb ola bilər. Zəhmət olmasa, "Davam et"
-						düyməsinə klikləməmişdən əvvəl ən azı 1 dəqiqə gözləyin.
 					</cdx-message>
 					<cdx-button
 						style="margin-top: 16px"
 						action="progressive"
-						@click="alreadyProcessed = false"
+						@click="continueAfterProcessed"
 						>Davam et</cdx-button
 					>
 				</div>
@@ -398,7 +395,7 @@
 			<div v-else-if="status === 'editing'" class="catsuggest-progress">
 				<cdx-progress-bar aria-label="Redaktə edilir" />
 				<p v-if="mode === 'parentCats'" style="margin-top: 12px">
-					Kateqoriyalar əlavə edilir
+					{{ parentCatsProgressText }}
 				</p>
 				<p v-else style="margin-top: 12px">
 					{{ currentProcessingTitle }} ({{ processedCount }}/{{ totalProcessingCount }})
@@ -407,13 +404,11 @@
 
 			<div v-else-if="status === 'success'" class="catsuggest-success">
 				<p class="catsuggest-success__text">
-					{{
-						editAborted ? 'Redaktə dayandırıldı.' : 'Kateqoriyalar uğurla əlavə edildi!'
-					}}
+					{{ editResultMessage }}
 				</p>
 				<cdx-message v-if="editAborted" type="warning" style="margin-top: 16px">
-					{{ processedCount }} səhifə uğurla redaktə edildi, qalan səhifələrə kateqoriya
-					əlavə edilmədi.
+					{{ processedCount }} səhifəyə kateqoriya əlavə edildi, qalan səhifələr redaktə
+					edilmədi.
 				</cdx-message>
 				<cdx-message v-if="editFailures.length > 0" type="error" style="margin-top: 16px">
 					<p class="catsuggest-failures__title">
@@ -575,6 +570,7 @@ const {
 	loadSiteMetadata,
 	isPageProcessed,
 	markPageAsProcessed,
+	clearMembersCache,
 	isCatPageExcluded,
 } = require('./cache.js');
 const {
@@ -585,7 +581,12 @@ const {
 	buildExistingRemovals,
 	detectTemplateAddedCategories,
 } = require('./suggestions.js');
-const { addParentCategoriesEdit, addCategoryToMembersEdit } = require('./edit.js');
+const {
+	addParentCategoriesEdit,
+	addCategoryToMembersEdit,
+	findTitlesAlreadyInCategory,
+	getEditResultMessage,
+} = require('./edit.js');
 const { cdxIconLanguage, cdxIconSearch } = require('./icons.json');
 
 const currentPageId = mw.config.get('wgArticleId');
@@ -624,6 +625,9 @@ export default {
 			currentProcessingTitle: '',
 			processedCount: 0,
 			totalProcessingCount: 0,
+			lastEditAddedCount: 0,
+			lastEditRemovedCount: 0,
+			currentEditAction: 'add',
 			editFailures: [],
 			showButtonTarget: false,
 			rememberLangs: false,
@@ -711,6 +715,22 @@ export default {
 		},
 		selectedCount() {
 			return this.suggestions.filter((s) => s.selected).length;
+		},
+		editResultMessage() {
+			return getEditResultMessage({
+				addedCount: this.lastEditAddedCount,
+				removedCount: this.lastEditRemovedCount,
+				aborted: this.editAborted,
+			});
+		},
+		parentCatsProgressText() {
+			if (this.currentEditAction === 'remove') {
+				return 'Kateqoriyalar silinir';
+			}
+			if (this.currentEditAction === 'mixed') {
+				return 'Kateqoriyalar redaktə edilir';
+			}
+			return 'Kateqoriyalar əlavə edilir';
 		},
 		selectedRemovalCount() {
 			const seen = new Set();
@@ -897,6 +917,16 @@ export default {
 			}
 		},
 
+		invalidateMembersState() {
+			clearMembersCache(currentPageId);
+			delete this.localStateCache['members-' + currentPageId];
+		},
+
+		continueAfterProcessed() {
+			this.invalidateMembersState();
+			this.alreadyProcessed = false;
+		},
+
 		async fetchLocalState() {
 			const mode = this.mode;
 			const cacheKey = mode + '-' + currentPageId;
@@ -1067,6 +1097,9 @@ export default {
 			this.editFailures = [];
 			this.appliedSites = [];
 			this.editAborted = false;
+			this.lastEditAddedCount = 0;
+			this.lastEditRemovedCount = 0;
+			this.currentEditAction = 'add';
 			this.cancelEditDialogShown = false;
 
 			const globalCatToSites = new Map();
@@ -1279,6 +1312,15 @@ export default {
 				return;
 			}
 
+			this.currentEditAction =
+				titlesToAdd.length > 0 && titlesToRemove.length > 0
+					? 'mixed'
+					: titlesToRemove.length > 0
+						? 'remove'
+						: 'add';
+			this.lastEditAddedCount = 0;
+			this.lastEditRemovedCount = 0;
+
 			const pageTitle = mw.config.get('wgPageName');
 			this.status = 'editing';
 			this.loading = true;
@@ -1301,11 +1343,13 @@ export default {
 				// completion, so a stop request made meanwhile is moot.
 				this.editAborted = false;
 				this.processedCount = 1;
+				this.lastEditAddedCount = titlesToAdd.length;
+				this.lastEditRemovedCount = titlesToRemove.length;
 				this.status = 'success';
 			} catch (_err) {
 				mw.log.warn('CatSuggest edit error:', _err);
 				this.error =
-					'Kateqoriyaları əlavə edərkən xəta baş verdi: ' + getErrorMessage(_err);
+					'Kateqoriyaları redaktə edərkən xəta baş verdi: ' + getErrorMessage(_err);
 				this.status = 'results';
 			} finally {
 				this.loading = false;
@@ -1318,23 +1362,72 @@ export default {
 				return;
 			}
 
-			const editGroupSuffix =
-				ENABLE_EDIT_GROUP_LINKS && selectedItems.length >= 8
-					? ' ([[:toolforge:editgroups-azwiki/b/CS/' + generateBatchId() + '|detallar]])'
-					: '';
-
 			this.status = 'editing';
 			this.loading = true;
 			this.editFailures = [];
 			this.editAborted = false;
+			this.lastEditAddedCount = 0;
+			this.lastEditRemovedCount = 0;
+			this.currentEditAction = 'add';
 			this.totalProcessingCount = selectedItems.length;
 			this.processedCount = 0;
+			this.currentProcessingTitle = 'Mövcud kateqoriyalar yoxlanılır...';
 
 			try {
-				const categoryTag = '\n[[' + mw.config.get('wgPageName').replace(/_/g, ' ') + ']]';
 				const pageName = mw.config.get('wgPageName');
+				const normalizedPageName = pageName.replace(/_/g, ' ');
+				const categoryTag = '\n[[' + normalizedPageName + ']]';
 
-				for (const item of selectedItems) {
+				// A resumed or stale suggestion may already contain the category.
+				// Check in batches before appending so interruptions cannot create
+				// duplicate category links.
+				let alreadyInCategory;
+				try {
+					alreadyInCategory = await findTitlesAlreadyInCategory(
+						this.api,
+						selectedItems.map((item) => item.title),
+						normalizedPageName
+					);
+				} catch (_err) {
+					mw.log.warn('Category precheck error:', _err);
+					this.error =
+						'Mövcud kateqoriyaları yoxlayarkən xəta baş verdi: ' +
+						getErrorMessage(_err);
+					this.status = 'results';
+					return;
+				}
+
+				let itemsToEdit = selectedItems;
+				if (alreadyInCategory.size > 0) {
+					this.suggestions = this.suggestions.filter(
+						(s) => !alreadyInCategory.has(s.title)
+					);
+					itemsToEdit = selectedItems.filter(
+						(item) => !alreadyInCategory.has(item.title)
+					);
+				}
+
+				if (itemsToEdit.length === 0) {
+					this.invalidateMembersState();
+					this.error = 'Seçilmiş səhifələrdə bu kateqoriya artıq mövcuddur.';
+					this.status = 'results';
+					return;
+				}
+
+				const editGroupSuffix =
+					ENABLE_EDIT_GROUP_LINKS && itemsToEdit.length >= 8
+						? ' ([[:toolforge:editgroups-azwiki/b/CS/' +
+							generateBatchId() +
+							'|detallar]])'
+						: '';
+
+				this.totalProcessingCount = itemsToEdit.length;
+				// Clear the pre-edit member list before the first edit. If the
+				// browser is closed mid-batch, the next fetch still reflects the
+				// pages that were edited.
+				this.invalidateMembersState();
+
+				for (const item of itemsToEdit) {
 					if (this.editAborted) {
 						break;
 					}
@@ -1361,9 +1454,11 @@ export default {
 					}
 				}
 
+				this.lastEditAddedCount = this.processedCount;
+
 				if (this.editAborted) {
 					const attemptedCount = this.processedCount + this.editFailures.length;
-					if (attemptedCount < selectedItems.length) {
+					if (attemptedCount < itemsToEdit.length) {
 						this.status = this.processedCount > 0 ? 'success' : 'results';
 						if (this.processedCount > 0) {
 							markPageAsProcessed(currentPageId);
@@ -1378,13 +1473,13 @@ export default {
 				}
 
 				this.status =
-					this.editFailures.length === selectedItems.length ? 'results' : 'success';
+					this.editFailures.length === itemsToEdit.length ? 'results' : 'success';
 
 				if (this.status === 'success') {
 					markPageAsProcessed(currentPageId);
 				}
 
-				if (this.editFailures.length === selectedItems.length) {
+				if (this.editFailures.length === itemsToEdit.length) {
 					this.error = 'Bütün redaktələr uğursuz oldu.';
 				}
 			} catch (_err) {
@@ -1536,6 +1631,9 @@ export default {
 			this.error = null;
 			this.editFailures = [];
 			this.editAborted = false;
+			this.lastEditAddedCount = 0;
+			this.lastEditRemovedCount = 0;
+			this.currentEditAction = 'add';
 			this.cancelEditDialogShown = false;
 			this.hasScrolledResults = false;
 			this.appliedSites = [];
