@@ -11,11 +11,11 @@
 	</teleport>
 
 	<cdx-dialog
-		v-model:open="dialogShown"
+		:open="dialogShown"
 		:title="mode === 'members' ? 'Məqalə və altkateqoriya təklifləri' : 'Kateqoriya təklifləri'"
 		:use-close-button="true"
 		close-button-label="Bağla"
-		@update:open="handleClose"
+		@update:open="onDialogOpenChange"
 	>
 		<template #default>
 			<div v-if="status === 'idle' || status === 'loading' || status === 'results'">
@@ -406,7 +406,15 @@
 			</div>
 
 			<div v-else-if="status === 'success'" class="catsuggest-success">
-				<p class="catsuggest-success__text">Kateqoriyalar uğurla əlavə edildi!</p>
+				<p class="catsuggest-success__text">
+					{{
+						editAborted ? 'Redaktə dayandırıldı.' : 'Kateqoriyalar uğurla əlavə edildi!'
+					}}
+				</p>
+				<cdx-message v-if="editAborted" type="warning" style="margin-top: 16px">
+					{{ processedCount }} səhifə uğurla redaktə edildi, qalan səhifələrə kateqoriya
+					əlavə edilmədi.
+				</cdx-message>
 				<cdx-message v-if="editFailures.length > 0" type="error" style="margin-top: 16px">
 					<p class="catsuggest-failures__title">
 						Aşağıdakı səhifələr redaktə edilə bilmədi:
@@ -465,6 +473,36 @@
 						:disabled="(selectedCount === 0 && !hasRemovals) || !hasScrolledResults"
 						@click="handleApplyClick"
 						>{{ selectedCount > 0 ? 'Təsdiq et' : 'Sil' }}</cdx-button
+					>
+				</div>
+			</div>
+		</template>
+	</cdx-dialog>
+
+	<cdx-dialog
+		v-model:open="cancelEditDialogShown"
+		title="Redaktəni dayandırın?"
+		:use-close-button="true"
+		close-button-label="Bağla"
+	>
+		<template #default>
+			<p>Redaktə davam edir. Cari əməliyyat tamamlandıqdan sonra dayandırılacaq.</p>
+			<p v-if="processedCount > 0" style="margin-top: 8px">
+				{{ processedCount }} səhifə artıq redaktə edilib.
+			</p>
+		</template>
+		<template #footer>
+			<div class="catsuggest-footer">
+				<div class="catsuggest-footer__actions">
+					<cdx-button size="medium" @click="cancelEditDialogShown = false"
+						>Davam et</cdx-button
+					>
+					<cdx-button
+						size="medium"
+						action="destructive"
+						weight="primary"
+						@click="confirmCancelEdit"
+						>Dayandır</cdx-button
 					>
 				</div>
 			</div>
@@ -591,6 +629,8 @@ export default {
 			rememberLangs: false,
 			hasScrolledResults: false,
 			confirmDialogShown: false,
+			cancelEditDialogShown: false,
+			editAborted: false,
 			alreadyProcessed: isCatPage && isPageProcessed(currentPageId),
 			langTab: 'large',
 			fetchAbortController: null,
@@ -708,11 +748,21 @@ export default {
 	},
 	methods: {
 		toggleDialog() {
-			this.dialogShown = !this.dialogShown;
 			if (this.dialogShown) {
-				if (this.sitelinks.length === 0) {
-					this.initGadget();
-				}
+				this.handleClose();
+				return;
+			}
+			this.dialogShown = true;
+			if (this.sitelinks.length === 0) {
+				this.initGadget();
+			}
+		},
+
+		onDialogOpenChange(open) {
+			if (open) {
+				this.dialogShown = true;
+			} else {
+				this.handleClose();
 			}
 		},
 
@@ -1016,6 +1066,8 @@ export default {
 			this.error = null;
 			this.editFailures = [];
 			this.appliedSites = [];
+			this.editAborted = false;
+			this.cancelEditDialogShown = false;
 
 			const globalCatToSites = new Map();
 			const redirectResolvedCatToSites = new Map();
@@ -1190,6 +1242,14 @@ export default {
 			}
 		},
 
+		handleBeforeUnload(event) {
+			if (this.status !== 'editing') {
+				return;
+			}
+			event.preventDefault();
+			event.returnValue = '';
+		},
+
 		async addParentCategories() {
 			const titlesToAdd = this.suggestions.filter((s) => s.selected).map((s) => s.title);
 			const removalSet = new Set();
@@ -1214,6 +1274,7 @@ export default {
 			this.status = 'editing';
 			this.loading = true;
 			this.editFailures = [];
+			this.editAborted = false;
 			this.totalProcessingCount = 1;
 			this.processedCount = 0;
 			this.currentProcessingTitle = pageTitle;
@@ -1227,10 +1288,9 @@ export default {
 					escapeRegex
 				);
 
-				if (!this.dialogShown) {
-					return;
-				}
-
+				// The edit request cannot be cancelled once sent; it always runs to
+				// completion, so a stop request made meanwhile is moot.
+				this.editAborted = false;
 				this.processedCount = 1;
 				this.status = 'success';
 			} catch (_err) {
@@ -1257,6 +1317,7 @@ export default {
 			this.status = 'editing';
 			this.loading = true;
 			this.editFailures = [];
+			this.editAborted = false;
 			this.totalProcessingCount = selectedItems.length;
 			this.processedCount = 0;
 
@@ -1265,6 +1326,9 @@ export default {
 				const pageName = mw.config.get('wgPageName');
 
 				for (const item of selectedItems) {
+					if (this.editAborted) {
+						break;
+					}
 					this.currentProcessingTitle = item.title;
 					try {
 						await addCategoryToMembersEdit(
@@ -1275,8 +1339,8 @@ export default {
 							pageName
 						);
 						this.processedCount++;
-						if (!this.dialogShown) {
-							return;
+						if (this.editAborted) {
+							break;
 						}
 						await sleep(300);
 					} catch (_err) {
@@ -1286,6 +1350,22 @@ export default {
 							error: getErrorMessage(_err),
 						});
 					}
+				}
+
+				if (this.editAborted) {
+					const attemptedCount = this.processedCount + this.editFailures.length;
+					if (attemptedCount < selectedItems.length) {
+						this.status = this.processedCount > 0 ? 'success' : 'results';
+						if (this.processedCount > 0) {
+							markPageAsProcessed(currentPageId);
+						} else {
+							this.error = 'Redaktə dayandırıldı. Heç bir səhifə redaktə edilmədi.';
+						}
+						return;
+					}
+					// The stop request arrived while the last pending edit was in
+					// flight, so there is nothing left to skip.
+					this.editAborted = false;
 				}
 
 				this.status =
@@ -1358,14 +1438,25 @@ export default {
 		},
 
 		handleClose() {
+			if (this.status === 'editing') {
+				this.cancelEditDialogShown = true;
+				return;
+			}
 			if (this.status === 'success') {
 				location.reload();
-			} else {
-				if (this.fetchAbortController) {
-					this.fetchAbortController.abort();
-					this.fetchAbortController = null;
-				}
-				this.dialogShown = false;
+				return;
+			}
+			if (this.fetchAbortController) {
+				this.fetchAbortController.abort();
+				this.fetchAbortController = null;
+			}
+			this.dialogShown = false;
+		},
+
+		confirmCancelEdit() {
+			this.cancelEditDialogShown = false;
+			if (this.status === 'editing') {
+				this.editAborted = true;
 			}
 		},
 
@@ -1435,10 +1526,15 @@ export default {
 			this.status = 'idle';
 			this.error = null;
 			this.editFailures = [];
+			this.editAborted = false;
+			this.cancelEditDialogShown = false;
 			this.hasScrolledResults = false;
 			this.appliedSites = [];
 		},
 		status(newVal) {
+			if (newVal !== 'editing') {
+				this.cancelEditDialogShown = false;
+			}
 			if (newVal === 'results') {
 				this.hasScrolledResults = false;
 				this.$nextTick(() => this.setupScrollObserver());
@@ -1462,6 +1558,11 @@ export default {
 			catLinks.parentNode.insertBefore(btnContainer, catLinks.nextSibling);
 			this.showButtonTarget = true;
 		}
+		window.addEventListener('beforeunload', this.handleBeforeUnload);
+	},
+
+	beforeUnmount() {
+		window.removeEventListener('beforeunload', this.handleBeforeUnload);
 	},
 };
 </script>
