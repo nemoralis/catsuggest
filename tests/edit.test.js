@@ -18,7 +18,7 @@ describe('getEditResultMessage', () => {
 
 	it('reports a mixed edit', () => {
 		expect(getEditResultMessage({ addedCount: 1, removedCount: 2 })).toBe(
-			'Kateqoriyalar uğurla əlavə edildi və silindi!'
+			'Kateqoriyalar uğurla redaktə edildi!'
 		);
 	});
 
