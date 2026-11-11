@@ -73,6 +73,85 @@ function getParentTitles(page) {
 }
 
 /**
+ * Walk up the local category graph level by level.
+ *
+ * Traversal state is tracked separately from `parentMap`: a title that is
+ * already in the map (for example a prefetched suggestion) must still have its
+ * own parents examined. Checking `parentMap.has()` instead would silently stop
+ * the walk at that node and let an ancestor slip through as a suggestion.
+ *
+ * @param {string[]} startTitles - Categories whose ancestors should be collected
+ * @param {Map<string, string[]>} parentMap - Parent lists, possibly prefilled
+ * @param {Object} [options]
+ * @param {Function} [options.fetchParents] - Async callback receiving the titles
+ *     of a level that still needs fetching
+ * @param {number} [options.maxDepth] - Maximum number of hops to walk
+ * @param {number} [options.maxNodesPerLevel] - Safety cap for dense graphs
+ * @param {Function} [options.logger] - Diagnostic logger
+ * @return {Promise<{ancestors: Set<string>, traversed: Set<string>, depth: number, truncated: boolean}>}
+ */
+async function walkAncestors(startTitles, parentMap, options = {}) {
+	const maxDepth = options.maxDepth === undefined ? ANCESTOR_CHECK_DEPTH : options.maxDepth;
+	const maxNodesPerLevel =
+		options.maxNodesPerLevel === undefined
+			? MAX_ANCESTOR_NODES_PER_LEVEL
+			: options.maxNodesPerLevel;
+	const fetchParents = options.fetchParents || (async () => {});
+	const logger = options.logger || log;
+
+	const ancestors = new Set();
+	const traversed = new Set();
+	let currentLevel = [...new Set(startTitles)];
+	let depth = 0;
+	let truncated = false;
+
+	for (let level = 0; level < maxDepth && currentLevel.length > 0; level++) {
+		logger('Ancestor walk depth', level, '| checking', currentLevel.length, 'nodes');
+		let truncatedThisLevel = false;
+
+		const toFetch = currentLevel.filter((title) => !traversed.has(title));
+		if (toFetch.length > 0) {
+			await fetchParents(toFetch);
+		}
+
+		const nextLevel = [];
+		const nextLevelSeen = new Set();
+		for (const title of currentLevel) {
+			traversed.add(title);
+			const parents = parentMap.get(title) || [];
+			for (const parent of parents) {
+				if (parent === title) {
+					continue;
+				}
+				ancestors.add(parent);
+				if (traversed.has(parent) || nextLevelSeen.has(parent)) {
+					continue;
+				}
+				if (nextLevel.length < maxNodesPerLevel) {
+					nextLevelSeen.add(parent);
+					nextLevel.push(parent);
+				} else {
+					truncated = true;
+					truncatedThisLevel = true;
+				}
+			}
+		}
+
+		if (truncatedThisLevel) {
+			logger('Ancestor walk truncated at depth', level, '| limit', maxNodesPerLevel);
+		}
+
+		if (nextLevel.length === 0) {
+			break;
+		}
+		currentLevel = nextLevel;
+		depth = level + 1;
+	}
+
+	return { ancestors, traversed, depth, truncated };
+}
+
+/**
  * Whether a resolved suggestion is the category page currently being edited.
  *
  * @param {string} title - Resolved suggestion title
@@ -452,37 +531,9 @@ async function buildParentCatsSuggestions(
 
 	await fetchParentsForTitles(suggestionTitles);
 
-	let currentLevel = [...new Set(currentCats)];
-	const allAncestors = new Set();
-
-	for (let depth = 0; depth < ANCESTOR_CHECK_DEPTH; depth++) {
-		log('Ancestor walk depth', depth, '| checking', currentLevel.length, 'nodes');
-		await fetchParentsForTitles(currentLevel);
-
-		const nextLevel = new Set();
-		let truncated = false;
-		currentLevel.forEach((title) => {
-			const parents = parentMap.get(title) || [];
-			parents.forEach((p) => {
-				allAncestors.add(p);
-				if (!parentMap.has(p)) {
-					if (nextLevel.size < MAX_ANCESTOR_NODES_PER_LEVEL) {
-						nextLevel.add(p);
-					} else if (!nextLevel.has(p)) {
-						truncated = true;
-					}
-				}
-			});
-		});
-
-		if (nextLevel.size === 0) {
-			break;
-		}
-		if (truncated) {
-			log('Ancestor walk truncated at depth', depth, '| limit', MAX_ANCESTOR_NODES_PER_LEVEL);
-		}
-		currentLevel = [...nextLevel];
-	}
+	const { ancestors: allAncestors } = await walkAncestors(currentCats, parentMap, {
+		fetchParents: fetchParentsForTitles,
+	});
 
 	log('Ancestors of current cats:', Array.from(allAncestors));
 
@@ -979,6 +1030,7 @@ async function detectTemplateAddedCategories(api, pageTitle, currentCats) {
 module.exports = {
 	fetchParentCatsSuggestions,
 	fetchMembersSuggestions,
+	walkAncestors,
 	buildParentCatsSuggestions,
 	buildExistingRemovals,
 	buildMembersSuggestions,

@@ -15,6 +15,25 @@ function sleep(ms) {
 }
 
 /**
+ * Wait for every promise and report each outcome without rejecting. This is
+ * the compatibility implementation of Promise.allSettled, which the project's
+ * browser target does not allow directly.
+ *
+ * @param {Array} promises - Promises or plain values
+ * @return {Promise<Object[]>} Per-input objects with a `status` field
+ */
+function settleAll(promises) {
+	return Promise.all(
+		promises.map((promise) =>
+			Promise.resolve(promise).then(
+				(value) => ({ status: 'fulfilled', value }),
+				(reason) => ({ status: 'rejected', reason })
+			)
+		)
+	);
+}
+
+/**
  * Send an API query, explicitly using POST when the serialized parameters would be
  * long enough for `mw.Api` to convert the GET into a read-only POST anyway. Doing
  * this ourselves avoids the "request method changed from GET to POST" warning while
@@ -242,6 +261,7 @@ function resetApiBatchSizeCache() {
 
 module.exports = {
 	sleep,
+	settleAll,
 	retryApiCall,
 	getErrorMessage,
 	fetchFullQuery,

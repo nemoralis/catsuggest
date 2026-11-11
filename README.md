@@ -54,6 +54,14 @@ flowchart TD
 Batch edits can be stopped midway, and failures are reported per page. The confirm
 button is only enabled after the results have been scrolled to the end.
 
+The lifecycle lives in `src/workflow.js` as a pure reducer
+(`idle → initializing/fetching → results → applying → success`). Every async load
+carries a request generation and mode; responses from an older request or from the
+other tab are discarded instead of writing into the current view. Aborting a fetch,
+closing the dialog, or switching tabs always returns the machine to a valid state.
+A members batch reports its outcome through one pure helper, so partial success,
+early stops and total failure are handled consistently.
+
 ```mermaid
 stateDiagram-v2
     [*] --> idle
@@ -82,6 +90,8 @@ flowchart LR
     app --> api["src/api.js<br/>API plumbing"]
     app --> edit["src/edit.js<br/>edit operations"]
     app --> cache["src/cache.js<br/>mw.storage helpers"]
+    app --> workflow["src/workflow.js<br/>lifecycle reducer"]
+    app --> promiseCache["src/async-cache.js<br/>promise cache"]
     suggestions --> api
     suggestions --> edit
     suggestions --> constants["src/constants.js<br/>tunables + helpers"]
@@ -100,6 +110,8 @@ flowchart LR
 | `src/api.js`                         | Retries with backoff, GET→POST escalation for long queries, continuation merging, batch sizing |
 | `src/edit.js`                        | Edit operations, duplicate-category precheck, template-added category detection           |
 | `src/cache.js`                       | `mw.storage` helpers: processed pages, site metadata, member trees                        |
+| `src/workflow.js`                    | Pure dialog lifecycle reducer, request generation guard and batch-outcome helper            |
+| `src/async-cache.js`                 | Promise cache that shares in-flight loads and drops rejected entries                      |
 | `src/constants.js`                   | Tunables, cache keys, Azerbaijani plural-aware title helpers, config loader               |
 | `src/catsuggest-config.json`         | Exclusion rules (sites, keywords, titles) and the large-wiki list                         |
 | `src/catsuggest-check.json`          | User allowlist for the members tab                                                        |
@@ -108,7 +120,7 @@ flowchart LR
 | `bin/deploy.js`                      | Deploys the bundle and CSS to azwiki with `mwn`                                           |
 | `bin/server.js`                      | Static file server for local development                                                  |
 | `bin/cattree.js`, `bin/members.js`   | Read-only Node diagnostics that run the suggestion pipeline against the live wikis        |
-| `tests/`                             | Vitest suites for the api, cache, constants, edit and suggestions modules                 |
+| `tests/`                             | Vitest suites for the api, cache, workflow, async cache, constants, edit and suggestions modules |
 
 ## Development
 

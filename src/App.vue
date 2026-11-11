@@ -475,10 +475,11 @@
 	</cdx-dialog>
 
 	<cdx-dialog
-		v-model:open="cancelEditDialogShown"
+		:open="modal === 'cancelEdit'"
 		title="Redaktəni dayandırın?"
 		:use-close-button="true"
 		close-button-label="Bağla"
+		@update:open="onModalOpenChange('cancelEdit', $event)"
 	>
 		<template #default>
 			<p>Redaktə davam edir. Cari əməliyyat tamamlandıqdan sonra dayandırılacaq.</p>
@@ -489,9 +490,7 @@
 		<template #footer>
 			<div class="catsuggest-footer">
 				<div class="catsuggest-footer__actions">
-					<cdx-button size="medium" @click="cancelEditDialogShown = false"
-						>Davam et</cdx-button
-					>
+					<cdx-button size="medium" @click="modal = null">Davam et</cdx-button>
 					<cdx-button
 						size="medium"
 						action="destructive"
@@ -505,10 +504,11 @@
 	</cdx-dialog>
 
 	<cdx-dialog
-		v-model:open="confirmDialogShown"
+		:open="modal === 'confirm'"
 		title="Redaktəni təsdiqləyin"
 		:use-close-button="true"
 		close-button-label="Bağla"
+		@update:open="onModalOpenChange('confirm', $event)"
 	>
 		<template #default>
 			<p>
@@ -519,9 +519,7 @@
 		<template #footer>
 			<div class="catsuggest-footer">
 				<div class="catsuggest-footer__actions">
-					<cdx-button size="medium" @click="confirmDialogShown = false"
-						>İmtina</cdx-button
-					>
+					<cdx-button size="medium" @click="modal = null">İmtina</cdx-button>
 					<cdx-button
 						size="medium"
 						action="progressive"
@@ -561,6 +559,7 @@ const {
 } = require('./constants.js');
 const {
 	sleep,
+	settleAll,
 	retryApiCall,
 	getErrorMessage,
 	fetchFullQuery,
@@ -587,9 +586,24 @@ const {
 	findTitlesAlreadyInCategory,
 	getEditResultMessage,
 } = require('./edit.js');
+const {
+	createWorkflowState,
+	isRequestCurrent,
+	workflowReducer,
+	getWorkflowStatus,
+	isWorkflowLoading,
+	getBatchOutcome,
+} = require('./workflow.js');
+const { createAsyncCache } = require('./async-cache.js');
 const { cdxIconLanguage, cdxIconSearch } = require('./icons.json');
 
 const currentPageId = mw.config.get('wgArticleId');
+
+function abortError() {
+	const error = new Error('Aborted');
+	error.name = 'AbortError';
+	return error;
+}
 
 export default {
 	name: 'CatSuggestApp',
@@ -605,12 +619,12 @@ export default {
 
 		return {
 			dialogShown: false,
-			loading: false,
 			suggestions: [],
 			qid: mw.config.get('wgWikibaseItemId'),
-			status: 'idle',
 			selectedSuggestions: [],
-			error: null,
+			workflow: createWorkflowState(),
+			workflowRequestSeq: 0,
+			modal: null,
 			icons: { language: cdxIconLanguage, search: cdxIconSearch },
 			sitelinks: [],
 			modeSelectedSites: {
@@ -621,7 +635,6 @@ export default {
 			debouncedSiteFilter: '',
 			mode: isCatPage && !isPageExcluded && this.isAuthorized ? 'members' : 'parentCats',
 			isCatPage,
-			localStateCache: {},
 			currentProcessingTitle: '',
 			processedCount: 0,
 			totalProcessingCount: 0,
@@ -632,8 +645,6 @@ export default {
 			showButtonTarget: false,
 			rememberLangs: false,
 			hasScrolledResults: false,
-			confirmDialogShown: false,
-			cancelEditDialogShown: false,
 			editAborted: false,
 			alreadyProcessed: isCatPage && isPageProcessed(currentPageId),
 			langTab: 'large',
@@ -643,6 +654,20 @@ export default {
 		};
 	},
 	computed: {
+		status() {
+			return getWorkflowStatus(this.workflow);
+		},
+		loading() {
+			return isWorkflowLoading(this.workflow);
+		},
+		error: {
+			get() {
+				return this.workflow.error;
+			},
+			set(value) {
+				this.dispatchWorkflow({ type: 'SET_ERROR', error: value });
+			},
+		},
 		canFetch() {
 			return this.selectedSites.length > 0 && !this.loading;
 		},
@@ -767,6 +792,27 @@ export default {
 		},
 	},
 	methods: {
+		dispatchWorkflow(action) {
+			this.workflow = workflowReducer(this.workflow, action);
+		},
+
+		beginWorkflowRequest(type) {
+			const request = {
+				requestId: ++this.workflowRequestSeq,
+				mode: this.mode,
+			};
+			this.dispatchWorkflow({
+				type,
+				requestId: request.requestId,
+				mode: request.mode,
+			});
+			return request;
+		},
+
+		isCurrentRequest(request) {
+			return isRequestCurrent(this.workflow, request);
+		},
+
 		toggleDialog() {
 			if (this.dialogShown) {
 				this.handleClose();
@@ -787,14 +833,16 @@ export default {
 		},
 
 		async initGadget() {
+			if (this.workflow.phase === 'initializing') {
+				return;
+			}
 			if (!this.qid) {
 				this.error =
 					'Bu səhifə Vikidataya qoşulmayıb. Zəhmət olmasa, əvvəlcə səhifəni Vikidata elementinə qoşun.';
 				return;
 			}
 
-			this.loading = true;
-			this.status = 'loading';
+			const request = this.beginWorkflowRequest('INIT_START');
 			try {
 				const wdResp = await retryApiCall(() =>
 					this.wikidataApi.get({
@@ -806,15 +854,26 @@ export default {
 					})
 				);
 
+				if (!this.isCurrentRequest(request)) {
+					return;
+				}
+
 				const entity = wdResp.entities[this.qid];
 				if (!entity || !entity.sitelinks) {
-					this.error =
-						'Bu səhifənin interviki keçidləri mövcud deyil. Səhifənin Vikidata elementinə digər dillərdəki səhifələr əlavə edilməyib.';
-					this.status = 'idle';
+					this.dispatchWorkflow({
+						type: 'INIT_COMPLETE',
+						requestId: request.requestId,
+						mode: request.mode,
+						error: 'Bu səhifənin interviki keçidləri mövcud deyil. Səhifənin Vikidata elementinə digər dillərdəki səhifələr əlavə edilməyib.',
+					});
 					return;
 				}
 
 				const { langMap, interwikiMap } = await loadSiteMetadata(this.api);
+
+				if (!this.isCurrentRequest(request)) {
+					return;
+				}
 
 				this.sitelinks = Object.values(entity.sitelinks)
 					.filter(
@@ -849,9 +908,12 @@ export default {
 				this.sitelinks.sort((a, b) => a.lang.localeCompare(b.lang));
 
 				if (this.sitelinks.length === 0) {
-					this.error =
-						'Seçdiyiniz dillərin heç birində bu səhifənin qarşılığı tapılmadı. Ola bilər ki, bu səhifə yalnız Azərbaycanca Vikipediyada mövcuddur.';
-					this.status = 'idle';
+					this.dispatchWorkflow({
+						type: 'INIT_COMPLETE',
+						requestId: request.requestId,
+						mode: request.mode,
+						error: 'Seçdiyiniz dillərin heç birində bu səhifənin qarşılığı tapılmadı. Ola bilər ki, bu səhifə yalnız Azərbaycanca Vikipediyada mövcuddur.',
+					});
 					return;
 				}
 
@@ -904,22 +966,34 @@ export default {
 					mw.storage.remove(CACHE_KEY_USER_LANGS_LEGACY);
 				}
 
-				this.status = 'idle';
+				this.dispatchWorkflow({
+					type: 'INIT_COMPLETE',
+					requestId: request.requestId,
+					mode: request.mode,
+					error: null,
+				});
 			} catch (_err) {
+				if (!this.isCurrentRequest(request)) {
+					return;
+				}
 				mw.log.warn('CatSuggest init error:', _err);
 				const errMsg = getErrorMessage(_err);
-				this.error =
-					'Digər vikilərin siyahısı alınarkən xəta baş verdi. İnternet bağlantınızı yoxlayın və yenidən cəhd edin. Xəta: ' +
-					errMsg;
-				this.status = 'idle';
-			} finally {
-				this.loading = false;
+				this.dispatchWorkflow({
+					type: 'INIT_COMPLETE',
+					requestId: request.requestId,
+					mode: request.mode,
+					error:
+						'Digər vikilərin siyahısı alınarkən xəta baş verdi. İnternet bağlantınızı yoxlayın və yenidən cəhd edin. Xəta: ' +
+						errMsg,
+				});
 			}
 		},
 
 		invalidateMembersState() {
 			clearMembersCache(currentPageId);
-			delete this.localStateCache['members-' + currentPageId];
+			if (this._localStateCache) {
+				this._localStateCache.invalidate('members-' + currentPageId);
+			}
 		},
 
 		continueAfterProcessed() {
@@ -927,17 +1001,13 @@ export default {
 			this.alreadyProcessed = false;
 		},
 
-		async fetchLocalState() {
+		fetchLocalState() {
 			const mode = this.mode;
 			const cacheKey = mode + '-' + currentPageId;
 
-			if (this.localStateCache[cacheKey]) {
-				return this.localStateCache[cacheKey];
-			}
-
-			const promise = this.fetchLocalStateImpl(mode, mw.config.get('wgPageName'));
-			this.localStateCache[cacheKey] = promise;
-			return promise;
+			return this._localStateCache.get(cacheKey, () =>
+				this.fetchLocalStateImpl(mode, mw.config.get('wgPageName'))
+			);
 		},
 
 		async fetchLocalStateImpl(mode, pageName) {
@@ -1088,19 +1158,18 @@ export default {
 			}
 			this.fetchAbortController = new AbortController();
 			const signal = this.fetchAbortController.signal;
+			const request = this.beginWorkflowRequest('FETCH_START');
+			const mode = request.mode;
 
-			this.loading = true;
-			this.status = 'loading';
 			this.suggestions = [];
 			this.existingRemovals = [];
-			this.error = null;
 			this.editFailures = [];
 			this.appliedSites = [];
 			this.editAborted = false;
 			this.lastEditAddedCount = 0;
 			this.lastEditRemovedCount = 0;
 			this.currentEditAction = 'add';
-			this.cancelEditDialogShown = false;
+			this.modal = null;
 
 			const globalCatToSites = new Map();
 			const redirectResolvedCatToSites = new Map();
@@ -1114,7 +1183,7 @@ export default {
 
 				if (this.rememberLangs) {
 					mw.storage.set(
-						getUserLangsKey(this.mode),
+						getUserLangsKey(mode),
 						JSON.stringify(this.selectedSites),
 						31536000
 					);
@@ -1131,7 +1200,7 @@ export default {
 					const lang = siteData.lang;
 					const foreignApi = createForeignApi(siteData.apiHost);
 
-					if (this.mode === 'parentCats') {
+					if (mode === 'parentCats') {
 						await fetchParentCatsSuggestions(
 							foreignApi,
 							siteData,
@@ -1154,29 +1223,58 @@ export default {
 					}
 				};
 
+				let failedSiteCount = 0;
 				for (let i = 0; i < sitesToProcess.length; i += FETCH_CONCURRENCY) {
 					if (signal.aborted) {
-						throw new DOMException('Aborted', 'AbortError');
+						throw abortError();
 					}
 					const batch = sitesToProcess.slice(i, i + FETCH_CONCURRENCY);
-					await Promise.all(batch.map((site) => processLanguage(site)));
+					const batchResults = await settleAll(
+						batch.map((site) => processLanguage(site))
+					);
+					if (signal.aborted) {
+						throw abortError();
+					}
+					for (const result of batchResults) {
+						if (result.status === 'rejected') {
+							failedSiteCount++;
+							mw.log.warn('CatSuggest site fetch error:', result.reason);
+						}
+					}
 					if (i + FETCH_CONCURRENCY < sitesToProcess.length) {
 						await sleep(SLEEP_BETWEEN_BATCHES_MS);
 					}
 				}
 
 				if (signal.aborted) {
-					throw new DOMException('Aborted', 'AbortError');
+					throw abortError();
+				}
+
+				if (failedSiteCount === sitesToProcess.length) {
+					this.dispatchWorkflow({
+						type: 'FETCH_FAIL',
+						requestId: request.requestId,
+						mode,
+						error: 'Seçilmiş dillərdən heç birindən məlumat alına bilmədi. İnternet bağlantınızı yoxlayın və yenidən cəhd edin.',
+					});
+					return;
 				}
 
 				const localData = await localStatePromise;
+				if (!this.isCurrentRequest(request)) {
+					return;
+				}
 
 				if (globalCatToSites.size === 0) {
-					this.error =
-						this.mode === 'parentCats'
-							? 'Seçilmiş dillərdə kateqoriya tapılmadı. Daha çox dil seçməyə və ya başqa dilləri sınamağa cəhd edin.'
-							: 'Seçilmiş dillərdə bu kateqoriyanın üzvü tapılmadı. Kateqoriyanın daha populyar dillərdə mövcud olduğunu yoxlayın.';
-					this.status = 'idle';
+					this.dispatchWorkflow({
+						type: 'FETCH_FAIL',
+						requestId: request.requestId,
+						mode,
+						error:
+							mode === 'parentCats'
+								? 'Seçilmiş dillərdə kateqoriya tapılmadı. Daha çox dil seçməyə və ya başqa dilləri sınamağa cəhd edin.'
+								: 'Seçilmiş dillərdə bu kateqoriyanın üzvü tapılmadı. Kateqoriyanın daha populyar dillərdə mövcud olduğunu yoxlayın.',
+					});
 					return;
 				}
 
@@ -1189,20 +1287,28 @@ export default {
 				);
 
 				if (resolvedResults.length === 0) {
-					this.error =
-						'Müqayisə edilən vikilərdəki kateqoriyaların heç biri Azərbaycanca Vikipediyada mövcud deyil. Ya seçilmiş dillərdəki kateqoriyalar burada yaradılmayıb, ya da səhifənin adı fərqlidir.';
-					this.status = 'idle';
+					this.dispatchWorkflow({
+						type: 'FETCH_FAIL',
+						requestId: request.requestId,
+						mode,
+						error: 'Müqayisə edilən vikilərdəki kateqoriyaların heç biri Azərbaycanca Vikipediyada mövcud deyil. Ya seçilmiş dillərdəki kateqoriyalar burada yaradılmayıb, ya da səhifənin adı fərqlidir.',
+					});
 					return;
 				}
 
-				if (this.mode === 'parentCats') {
+				let suggestions;
+				let existingRemovals = [];
+				if (mode === 'parentCats') {
 					const templateAddedCats = await detectTemplateAddedCategories(
 						this.api,
 						mw.config.get('wgPageName').replace(/_/g, ' '),
 						localData
 					);
+					if (!this.isCurrentRequest(request)) {
+						return;
+					}
 
-					const { suggestions, parentMap } = await buildParentCatsSuggestions(
+					const built = await buildParentCatsSuggestions(
 						resolvedResults,
 						localData,
 						this.api,
@@ -1212,20 +1318,30 @@ export default {
 						foreignNamesByTitle,
 						currentCategoryTitle
 					);
-					this.suggestions = suggestions;
-					this.existingRemovals = await buildExistingRemovals(
+					if (!this.isCurrentRequest(request)) {
+						return;
+					}
+					suggestions = built.suggestions;
+
+					existingRemovals = await buildExistingRemovals(
 						localData,
 						this.api,
 						templateAddedCats,
-						parentMap,
+						built.parentMap,
 						currentPageTitle
 					);
-					this.existingRemovals.forEach(
+					if (!this.isCurrentRequest(request)) {
+						return;
+					}
+					existingRemovals.forEach(
 						(rem) => (rem.flatTree = this.flattenTree(rem.tree, 0))
 					);
 				} else {
 					const currentPageCats = await this.fetchParentCatsState();
-					this.suggestions = await buildMembersSuggestions(
+					if (!this.isCurrentRequest(request)) {
+						return;
+					}
+					suggestions = await buildMembersSuggestions(
 						resolvedResults,
 						localData,
 						this.api,
@@ -1234,31 +1350,54 @@ export default {
 						foreignNamesByTitle,
 						currentCategoryTitle
 					);
+					if (!this.isCurrentRequest(request)) {
+						return;
+					}
 				}
 
-				this.suggestions.sort((a, b) =>
+				suggestions.sort((a, b) =>
 					a.title
 						.replace(/^(Kateqoriya|Category):/i, '')
 						.localeCompare(b.title.replace(/^(Kateqoriya|Category):/i, ''))
 				);
 
-				if (this.suggestions.length === 0) {
-					this.error = 'Yeni təklif tapılmadı.';
+				this.suggestions = suggestions;
+				this.existingRemovals = existingRemovals;
+
+				let completionError = null;
+				if (suggestions.length === 0) {
+					completionError = 'Yeni təklif tapılmadı.';
+				} else {
+					// Only prune languages that produced no results. On an empty
+					// result keep the user's selection so they can adjust it.
+					this.pruneInactiveSites();
+					this.appliedSites = this.selectedSites.slice();
 				}
 
-				this.pruneInactiveSites();
-				this.appliedSites = this.selectedSites.slice();
-
-				this.status = 'results';
+				this.dispatchWorkflow({
+					type: 'FETCH_COMPLETE',
+					requestId: request.requestId,
+					mode,
+					error: completionError,
+				});
 			} catch (_err) {
 				if (_err.name === 'AbortError') {
 					return;
 				}
+				if (!this.isCurrentRequest(request)) {
+					return;
+				}
 				mw.log.warn('Xəta:', _err);
-				this.error = 'Xəta baş verdi: ' + getErrorMessage(_err);
-				this.status = 'idle';
+				this.dispatchWorkflow({
+					type: 'FETCH_FAIL',
+					requestId: request.requestId,
+					mode,
+					error: 'Xəta baş verdi: ' + getErrorMessage(_err),
+				});
 			} finally {
-				this.loading = false;
+				if (this.fetchAbortController && this.fetchAbortController.signal === signal) {
+					this.fetchAbortController = null;
+				}
 			}
 		},
 
@@ -1322,8 +1461,7 @@ export default {
 			this.lastEditRemovedCount = 0;
 
 			const pageTitle = mw.config.get('wgPageName');
-			this.status = 'editing';
-			this.loading = true;
+			this.dispatchWorkflow({ type: 'APPLY_START' });
 			this.editFailures = [];
 			this.editAborted = false;
 			this.totalProcessingCount = 1;
@@ -1345,14 +1483,14 @@ export default {
 				this.processedCount = 1;
 				this.lastEditAddedCount = titlesToAdd.length;
 				this.lastEditRemovedCount = titlesToRemove.length;
-				this.status = 'success';
+				this.dispatchWorkflow({ type: 'APPLY_COMPLETE' });
 			} catch (_err) {
 				mw.log.warn('CatSuggest edit error:', _err);
-				this.error =
-					'Kateqoriyaları redaktə edərkən xəta baş verdi: ' + getErrorMessage(_err);
-				this.status = 'results';
-			} finally {
-				this.loading = false;
+				this.dispatchWorkflow({
+					type: 'APPLY_FAIL',
+					error:
+						'Kateqoriyaları redaktə edərkən xəta baş verdi: ' + getErrorMessage(_err),
+				});
 			}
 		},
 
@@ -1362,8 +1500,7 @@ export default {
 				return;
 			}
 
-			this.status = 'editing';
-			this.loading = true;
+			this.dispatchWorkflow({ type: 'APPLY_START' });
 			this.editFailures = [];
 			this.editAborted = false;
 			this.lastEditAddedCount = 0;
@@ -1390,10 +1527,12 @@ export default {
 					);
 				} catch (_err) {
 					mw.log.warn('Category precheck error:', _err);
-					this.error =
-						'Mövcud kateqoriyaları yoxlayarkən xəta baş verdi: ' +
-						getErrorMessage(_err);
-					this.status = 'results';
+					this.dispatchWorkflow({
+						type: 'APPLY_FAIL',
+						error:
+							'Mövcud kateqoriyaları yoxlayarkən xəta baş verdi: ' +
+							getErrorMessage(_err),
+					});
 					return;
 				}
 
@@ -1409,8 +1548,10 @@ export default {
 
 				if (itemsToEdit.length === 0) {
 					this.invalidateMembersState();
-					this.error = 'Seçilmiş səhifələrdə bu kateqoriya artıq mövcuddur.';
-					this.status = 'results';
+					this.dispatchWorkflow({
+						type: 'APPLY_FAIL',
+						error: 'Seçilmiş səhifələrdə bu kateqoriya artıq mövcuddur.',
+					});
 					return;
 				}
 
@@ -1456,38 +1597,27 @@ export default {
 
 				this.lastEditAddedCount = this.processedCount;
 
-				if (this.editAborted) {
-					const attemptedCount = this.processedCount + this.editFailures.length;
-					if (attemptedCount < itemsToEdit.length) {
-						this.status = this.processedCount > 0 ? 'success' : 'results';
-						if (this.processedCount > 0) {
-							markPageAsProcessed(currentPageId);
-						} else {
-							this.error = 'Redaktə dayandırıldı. Heç bir səhifə redaktə edilmədi.';
-						}
-						return;
-					}
-					// The stop request arrived while the last pending edit was in
-					// flight, so there is nothing left to skip.
-					this.editAborted = false;
-				}
-
-				this.status =
-					this.editFailures.length === itemsToEdit.length ? 'results' : 'success';
-
-				if (this.status === 'success') {
+				const outcome = getBatchOutcome({
+					total: itemsToEdit.length,
+					succeeded: this.processedCount,
+					failed: this.editFailures.length,
+					aborted: this.editAborted,
+				});
+				this.editAborted = outcome.aborted;
+				if (outcome.markProcessed) {
 					markPageAsProcessed(currentPageId);
 				}
-
-				if (this.editFailures.length === itemsToEdit.length) {
-					this.error = 'Bütün redaktələr uğursuz oldu.';
-				}
+				this.dispatchWorkflow(
+					outcome.phase === 'success'
+						? { type: 'APPLY_COMPLETE' }
+						: { type: 'APPLY_FAIL', error: outcome.error }
+				);
 			} catch (_err) {
 				mw.log.warn('Batch edit error:', _err);
-				this.error = 'Məqalələri redaktə edərkən xəta baş verdi: ' + getErrorMessage(_err);
-				this.status = 'results';
-			} finally {
-				this.loading = false;
+				this.dispatchWorkflow({
+					type: 'APPLY_FAIL',
+					error: 'Məqalələri redaktə edərkən xəta baş verdi: ' + getErrorMessage(_err),
+				});
 			}
 		},
 
@@ -1543,24 +1673,37 @@ export default {
 
 		handleClose() {
 			if (this.status === 'editing') {
-				this.cancelEditDialogShown = true;
+				this.modal = 'cancelEdit';
 				return;
 			}
 			if (this.status === 'success') {
 				location.reload();
 				return;
 			}
+			this.modal = null;
 			if (this.fetchAbortController) {
 				this.fetchAbortController.abort();
 				this.fetchAbortController = null;
+			}
+			if (this.status === 'loading') {
+				this.dispatchWorkflow({
+					type: 'CANCEL',
+					requestId: this.workflow.requestId,
+				});
 			}
 			this.dialogShown = false;
 		},
 
 		confirmCancelEdit() {
-			this.cancelEditDialogShown = false;
+			this.modal = null;
 			if (this.status === 'editing') {
 				this.editAborted = true;
+			}
+		},
+
+		onModalOpenChange(expected, open) {
+			if (!open && this.modal === expected) {
+				this.modal = null;
 			}
 		},
 
@@ -1592,14 +1735,14 @@ export default {
 
 		handleApplyClick() {
 			if (this.mode === 'members' && this.selectedCount >= CONFIRM_BATCH_THRESHOLD) {
-				this.confirmDialogShown = true;
+				this.modal = 'confirm';
 			} else {
 				this.applyChanges();
 			}
 		},
 
 		confirmAndApply() {
-			this.confirmDialogShown = false;
+			this.modal = null;
 			this.applyChanges();
 		},
 
@@ -1626,21 +1769,30 @@ export default {
 	},
 	watch: {
 		mode() {
+			if (this.fetchAbortController) {
+				this.fetchAbortController.abort();
+				this.fetchAbortController = null;
+			}
+			// Invalidate an in-flight fetch so its late response cannot write
+			// into the newly selected tab. Initialization is mode-independent:
+			// letting it finish keeps the shared language list available.
+			if (this.workflow.phase !== 'initializing' && this.workflow.phase !== 'applying') {
+				this.dispatchWorkflow({ type: 'RESET' });
+			}
 			this.suggestions = [];
-			this.status = 'idle';
-			this.error = null;
+			this.existingRemovals = [];
 			this.editFailures = [];
 			this.editAborted = false;
 			this.lastEditAddedCount = 0;
 			this.lastEditRemovedCount = 0;
 			this.currentEditAction = 'add';
-			this.cancelEditDialogShown = false;
+			this.modal = null;
 			this.hasScrolledResults = false;
 			this.appliedSites = [];
 		},
 		status(newVal) {
-			if (newVal !== 'editing') {
-				this.cancelEditDialogShown = false;
+			if (newVal !== 'editing' && this.modal === 'cancelEdit') {
+				this.modal = null;
 			}
 			if (newVal === 'results') {
 				this.hasScrolledResults = false;
@@ -1656,6 +1808,11 @@ export default {
 				this.langTab = 'small';
 			}
 		},
+	},
+	created() {
+		// Kept off the reactive data object: the cache is an implementation
+		// detail and its promises must not be proxied by Vue.
+		this._localStateCache = createAsyncCache();
 	},
 	mounted() {
 		const catLinks = document.getElementById('catlinks');

@@ -16,6 +16,7 @@ global.mw = {
 };
 
 const {
+	walkAncestors,
 	buildParentCatsSuggestions,
 	buildExistingRemovals,
 	buildMembersSuggestions,
@@ -23,6 +24,103 @@ const {
 	fetchParentCatsSuggestions,
 } = await import('../src/suggestions.js');
 const { MAX_ANCESTOR_NODES_PER_LEVEL } = await import('../src/constants.js');
+
+describe('walkAncestors', () => {
+	const silent = { logger: () => {} };
+
+	it('keeps walking through nodes that were prefetched into parentMap', async () => {
+		const parentMap = new Map([
+			['Kateqoriya:Current', ['Kateqoriya:Prefetched']],
+			['Kateqoriya:Prefetched', ['Kateqoriya:Grand']],
+			['Kateqoriya:Grand', []],
+		]);
+
+		const result = await walkAncestors(['Kateqoriya:Current'], parentMap, {
+			fetchParents: async () => {},
+			...silent,
+		});
+
+		expect(Array.from(result.ancestors).sort()).toEqual([
+			'Kateqoriya:Grand',
+			'Kateqoriya:Prefetched',
+		]);
+		expect(result.traversed.has('Kateqoriya:Prefetched')).toBe(true);
+		expect(result.traversed.has('Kateqoriya:Grand')).toBe(true);
+		expect(result.depth).toBe(2);
+	});
+
+	it('stops at maxDepth', async () => {
+		const parentMap = new Map([
+			['Kateqoriya:A', ['Kateqoriya:B']],
+			['Kateqoriya:B', ['Kateqoriya:C']],
+			['Kateqoriya:C', ['Kateqoriya:D']],
+			['Kateqoriya:D', []],
+		]);
+
+		const result = await walkAncestors(['Kateqoriya:A'], parentMap, {
+			maxDepth: 2,
+			fetchParents: async () => {},
+			...silent,
+		});
+
+		expect(Array.from(result.ancestors).sort()).toEqual([
+			'Kateqoriya:B',
+			'Kateqoriya:C',
+		]);
+		expect(result.ancestors.has('Kateqoriya:D')).toBe(false);
+		expect(result.depth).toBe(2);
+	});
+
+	it('caps how many nodes are traversed per level', async () => {
+		const parentMap = new Map([
+			['Kateqoriya:A', ['Kateqoriya:P0', 'Kateqoriya:P1', 'Kateqoriya:P2']],
+			['Kateqoriya:P0', []],
+			['Kateqoriya:P1', []],
+			['Kateqoriya:P2', []],
+		]);
+
+		const result = await walkAncestors(['Kateqoriya:A'], parentMap, {
+			maxNodesPerLevel: 2,
+			fetchParents: async () => {},
+			...silent,
+		});
+
+		// All parents are ancestors, but only the first two are traversed.
+		expect(result.ancestors.has('Kateqoriya:P2')).toBe(true);
+		expect(result.traversed.has('Kateqoriya:P2')).toBe(false);
+		expect(result.traversed.has('Kateqoriya:P0')).toBe(true);
+		expect(result.traversed.has('Kateqoriya:P1')).toBe(true);
+		expect(result.truncated).toBe(true);
+	});
+
+	it('ignores a self-parent edge', async () => {
+		const parentMap = new Map([['Kateqoriya:A', ['Kateqoriya:A']]]);
+
+		const result = await walkAncestors(['Kateqoriya:A'], parentMap, {
+			fetchParents: async () => {},
+			...silent,
+		});
+
+		expect(result.ancestors.size).toBe(0);
+		expect(result.traversed.has('Kateqoriya:A')).toBe(true);
+	});
+
+	it('terminates on a category-graph cycle', async () => {
+		const parentMap = new Map([
+			['Kateqoriya:A', ['Kateqoriya:B']],
+			['Kateqoriya:B', ['Kateqoriya:A']],
+		]);
+
+		const result = await walkAncestors(['Kateqoriya:A'], parentMap, {
+			fetchParents: async () => {},
+			...silent,
+		});
+
+		expect(result.ancestors.has('Kateqoriya:B')).toBe(true);
+		expect(result.traversed.has('Kateqoriya:A')).toBe(true);
+		expect(result.traversed.has('Kateqoriya:B')).toBe(true);
+	});
+});
 
 describe('buildParentCatsSuggestions', () => {
 	beforeEach(() => {

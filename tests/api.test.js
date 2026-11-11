@@ -1,6 +1,21 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 
-const { fetchFullQuery, getApiBatchSize, resetApiBatchSizeCache } = await import('../src/api.js');
+const { fetchFullQuery, getApiBatchSize, resetApiBatchSizeCache, settleAll } = await import(
+	'../src/api.js'
+);
+
+describe('settleAll', () => {
+	it('reports fulfilled and rejected outcomes without rejecting', async () => {
+		const error = new Error('site down');
+		const results = await settleAll([
+			Promise.resolve('ok'),
+			Promise.reject(error),
+		]);
+
+		expect(results[0]).toEqual({ status: 'fulfilled', value: 'ok' });
+		expect(results[1]).toEqual({ status: 'rejected', reason: error });
+	});
+});
 
 describe('fetchFullQuery', () => {
 	it('merges langlinks returned in continuation batches', async () => {
