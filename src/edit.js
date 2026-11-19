@@ -147,6 +147,32 @@ async function findTitlesAlreadyInCategory(api, titles, categoryTitle) {
 	return alreadyInCategory;
 }
 
+/**
+ * Normalize a user-supplied category sort key before putting it in a wikilink.
+ * Removes characters that would break the link syntax or the wikitext line.
+ *
+ * @param {string} [value]
+ * @return {string}
+ */
+function sanitizeSortKey(value) {
+	if (typeof value !== 'string') {
+		return '';
+	}
+	return value.replace(/[\r\n|[\]]/g, '').trim();
+}
+
+/**
+ * Build the wikitext for a category link, optionally with a sort key.
+ *
+ * @param {{ title: string, sortKey?: string }} item
+ * @return {string}
+ */
+function formatCategoryLink({ title, sortKey }) {
+	const normalizedTitle = title.replace(/_/g, ' ');
+	const key = sanitizeSortKey(sortKey);
+	return key ? `[[${normalizedTitle}|${key}]]` : `[[${normalizedTitle}]]`;
+}
+
 async function addParentCategoriesEdit(api, pageTitle, titlesToAdd, titlesToRemove, escapeRegex) {
 	const summaryParts = [];
 	if (titlesToAdd.length > 0) {
@@ -177,12 +203,12 @@ async function addParentCategoriesEdit(api, pageTitle, titlesToAdd, titlesToRemo
 		});
 
 		if (titlesToAdd.length > 0) {
-			content += '\n' + titlesToAdd.map((t) => `[[${t.replace(/_/g, ' ')}]]`).join('\n');
+			content += '\n' + titlesToAdd.map(formatCategoryLink).join('\n');
 		}
 
 		params.text = content;
 	} else {
-		params.appendtext = '\n' + titlesToAdd.map((t) => `[[${t.replace(/_/g, ' ')}]]`).join('\n');
+		params.appendtext = '\n' + titlesToAdd.map(formatCategoryLink).join('\n');
 		params.redirect = true;
 	}
 
@@ -204,5 +230,7 @@ module.exports = {
 	fetchPageContent,
 	findTitlesAlreadyInCategory,
 	getEditResultMessage,
+	sanitizeSortKey,
+	formatCategoryLink,
 	editPage,
 };

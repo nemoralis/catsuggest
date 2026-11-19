@@ -608,6 +608,7 @@ async function buildParentCatsSuggestions(
 			title: resolvedTitle,
 			selected: !(isAzwikiRedirect || hasEntries(baseSites)),
 			sources: r.sources,
+			sortKey: '',
 			azRedirectFrom: isAzwikiRedirect ? r.title : undefined,
 			redirectSites: isAzwikiRedirect
 				? Array.from(new Set([...baseSites, azLang]))

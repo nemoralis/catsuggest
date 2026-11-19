@@ -296,9 +296,21 @@
 													target="_blank"
 													class="catsuggest-suggestion__link"
 													@click.stop
-													>{{ cat.title }}</a
+													>{{ displayCategoryTitle(cat.title) }}</a
 												>
 											</cdx-checkbox>
+											<cdx-button
+												class="catsuggest-suggestion__sortkey"
+												:class="{
+													'catsuggest-suggestion__sortkey--set':
+														cat.sortKey,
+												}"
+												variation="quiet"
+												aria-label="Sıralama açarı təyin et"
+												@click="openSortKeyPopover(cat, $event)"
+											>
+												<cdx-icon :icon="icons.key" />
+											</cdx-button>
 											<span
 												v-if="cat.sources && cat.sources.length"
 												class="catsuggest-suggestion__sources"
@@ -327,7 +339,9 @@
 															:href="getPageUrl(rem.title)"
 															target="_blank"
 															class="catsuggest-suggestion__link"
-															>{{ rem.title }}</a
+															>{{
+																displayCategoryTitle(rem.title)
+															}}</a
 														></s
 													>
 													<template #description
@@ -357,7 +371,7 @@
 													:href="getPageUrl(rem.title)"
 													target="_blank"
 													class="catsuggest-suggestion__link"
-													>{{ rem.title }}</a
+													>{{ displayCategoryTitle(rem.title) }}</a
 												></s
 											>
 											<template #description
@@ -378,7 +392,7 @@
 															text-decoration: none;
 															color: var(--color-progressive, #36c);
 														"
-														>{{ node.title }}</a
+														>{{ displayCategoryTitle(node.title) }}</a
 													></span
 												></template
 											>
@@ -387,6 +401,30 @@
 								</cdx-accordion>
 							</div>
 						</div>
+						<cdx-popover
+							v-model:open="sortKeyPopoverOpen"
+							:anchor="sortKeyPopoverAnchor"
+							:render-in-place="true"
+							placement="top"
+							title="Sıralama açarı"
+							:use-close-button="true"
+							class="catsuggest-sortkey-popover"
+						>
+							<p>Sıralama açarı kateqoriya daxilində səhifənin yerini təyin edir.</p>
+							<cdx-text-input
+								v-if="activeSortKeySuggestion"
+								v-model="activeSortKeySuggestion.sortKey"
+								placeholder="Sıralama açarı"
+							/>
+							<p>
+								<a
+									:href="getPageUrl('Special:MyLanguage/Help:Categories')"
+									target="_blank"
+									class="catsuggest-suggestion__link"
+									>Ətraflı məlumat</a
+								>
+							</p>
+						</cdx-popover>
 						<div ref="resultsSentinel" style="height: 1px"></div>
 					</div>
 				</template>
@@ -585,6 +623,7 @@ const {
 	addCategoryToMembersEdit,
 	findTitlesAlreadyInCategory,
 	getEditResultMessage,
+	sanitizeSortKey,
 } = require('./edit.js');
 const {
 	createWorkflowState,
@@ -595,7 +634,7 @@ const {
 	getBatchOutcome,
 } = require('./workflow.js');
 const { createAsyncCache } = require('./async-cache.js');
-const { cdxIconLanguage, cdxIconSearch } = require('./icons.json');
+const { cdxIconLanguage, cdxIconSearch, cdxIconKey } = require('./icons.json');
 
 const currentPageId = mw.config.get('wgArticleId');
 
@@ -625,7 +664,10 @@ export default {
 			workflow: createWorkflowState(),
 			workflowRequestSeq: 0,
 			modal: null,
-			icons: { language: cdxIconLanguage, search: cdxIconSearch },
+			icons: { language: cdxIconLanguage, search: cdxIconSearch, key: cdxIconKey },
+			sortKeyPopoverOpen: false,
+			sortKeyPopoverAnchor: null,
+			activeSortKeySuggestion: null,
 			sitelinks: [],
 			modeSelectedSites: {
 				members: [],
@@ -1361,6 +1403,7 @@ export default {
 						.localeCompare(b.title.replace(/^(Kateqoriya|Category):/i, ''))
 				);
 
+				this.closeSortKeyPopover();
 				this.suggestions = suggestions;
 				this.existingRemovals = existingRemovals;
 
@@ -1411,6 +1454,7 @@ export default {
 		},
 
 		async applyChanges() {
+			this.closeSortKeyPopover();
 			if (this.mode === 'members') {
 				await this.addCategoryToArticles();
 			} else {
@@ -1430,9 +1474,8 @@ export default {
 			const currentPageTitle = mw.config.get('wgTitle').replace(/_/g, ' ');
 			const currentCategoryTitle = this.isCatPage ? CATEGORY_PREFIX + currentPageTitle : '';
 			const titlesToAdd = this.suggestions
-				.filter((s) => s.selected)
-				.map((s) => s.title)
-				.filter((title) => title !== currentCategoryTitle);
+				.filter((s) => s.selected && s.title !== currentCategoryTitle)
+				.map((s) => ({ title: s.title, sortKey: sanitizeSortKey(s.sortKey) }));
 			const removalSet = new Set();
 			this.suggestions.forEach((s) => {
 				(s.removals || []).forEach((r) => {
@@ -1625,6 +1668,22 @@ export default {
 			return mw.util.getUrl(title);
 		},
 
+		displayCategoryTitle(title) {
+			return String(title).replace(/^(?:Kateqoriya|Category):/i, '');
+		},
+
+		openSortKeyPopover(cat, event) {
+			this.activeSortKeySuggestion = cat;
+			this.sortKeyPopoverAnchor = event.currentTarget;
+			this.sortKeyPopoverOpen = true;
+		},
+
+		closeSortKeyPopover() {
+			this.sortKeyPopoverOpen = false;
+			this.activeSortKeySuggestion = null;
+			this.sortKeyPopoverAnchor = null;
+		},
+
 		sourcesStatus(item) {
 			return item.azRedirectFrom ||
 				(item.redirectSites || []).some((lang) => item.sources.includes(lang))
@@ -1681,6 +1740,7 @@ export default {
 				return;
 			}
 			this.modal = null;
+			this.closeSortKeyPopover();
 			if (this.fetchAbortController) {
 				this.fetchAbortController.abort();
 				this.fetchAbortController = null;

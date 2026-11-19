@@ -61,6 +61,18 @@
 	color: var(--color-progressive, #36c);
 	text-decoration: none;
 }
+.catsuggest-suggestion__sortkey {
+	margin-left: 4px;
+}
+.catsuggest-suggestion__sortkey--set {
+	color: var(--color-progressive, #36c);
+}
+.catsuggest-sortkey-popover p {
+	margin: 0 0 8px;
+}
+.catsuggest-sortkey-popover .cdx-text-input {
+	width: 100%;
+}
 .catsuggest-suggestion__sources {
 	display: inline-flex;
 	gap: 4px;

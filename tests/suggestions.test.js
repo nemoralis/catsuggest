@@ -190,6 +190,7 @@ describe('buildParentCatsSuggestions', () => {
 		expect(titles).not.toContain('Kateqoriya:Britaniya filosofları');
 		expect(titles).not.toContain('Kateqoriya:Ateistlər');
 		expect(suggestions.every((s) => s.selected)).toBe(true);
+		expect(suggestions.every((s) => s.sortKey === '')).toBe(true);
 	});
 
 	it('should drop a redirect candidate whose target is already a current category', async () => {

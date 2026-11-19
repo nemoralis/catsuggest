@@ -102,6 +102,7 @@ function vueSfcPlugin() {
 					'__sfc_main.components = {',
 					"  'cdx-button': codex.CdxButton,",
 					"  'cdx-dialog': codex.CdxDialog,",
+					"  'cdx-popover': codex.CdxPopover,",
 					"  'cdx-progress-bar': codex.CdxProgressBar,",
 					"  'cdx-checkbox': codex.CdxCheckbox,",
 					"  'cdx-message': codex.CdxMessage,",
