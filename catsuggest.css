@@ -64,6 +64,19 @@
 .catsuggest-suggestion__sortkey {
 	margin-left: 4px;
 }
+.catsuggest-suggestion__sortkey.cdx-button {
+	min-width: 0;
+	min-height: 0;
+	padding-right: 4px;
+	padding-left: 4px;
+	line-height: 1;
+}
+.catsuggest-suggestion__sortkey .cdx-icon {
+	min-width: 0;
+	min-height: 0;
+	width: var(--font-size-medium, 1rem);
+	height: var(--font-size-medium, 1rem);
+}
 .catsuggest-suggestion__sortkey--set {
 	color: var(--color-progressive, #36c);
 }
@@ -154,6 +167,12 @@
 	margin-bottom: 16px;
 }
 .catsuggest-site-section {
+	margin-bottom: 0;
+}
+.catsuggest-lang-accordion {
+	margin-bottom: 12px;
+}
+.catsuggest-lang-changed-warning {
 	margin-bottom: 12px;
 }
 .catsuggest-results {

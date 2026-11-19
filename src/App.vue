@@ -85,98 +85,118 @@
 						edilə biləcək məqalələr və altkateqoriyalar.
 					</p>
 
-					<div
+					<cdx-accordion
 						v-if="
 							sitelinks.length > 0 &&
 							(status === 'idle' || status === 'loading' || status === 'results')
 						"
-						class="catsuggest-site-section"
+						v-model="langsAccordionOpen"
+						separation="outline"
+						:action-icon="icons.reload"
+						action-button-label="Təklifləri al"
+						@action-button-click="onAccordionFetch"
+						class="catsuggest-lang-accordion"
 					>
-						<div class="catsuggest-header">
-							<p class="catsuggest-header__label">Dilləri seçin:</p>
-							<cdx-toggle-switch v-model="allSelected" :disabled="loading">
-								Bütün dilləri seç ({{ filteredSitelinks.length }})
-							</cdx-toggle-switch>
-						</div>
-
-						<cdx-tabs
-							v-model:active="langTab"
-							style="margin-top: 12px; margin-bottom: 12px"
-						>
-							<cdx-tab
-								name="large"
-								:label="largeTabLabel"
-								:disabled="loading || largeSitelinks.length === 0"
-							/>
-							<cdx-tab
-								name="small"
-								:label="smallTabLabel"
-								:disabled="loading || smallSitelinks.length === 0"
-							/>
-						</cdx-tabs>
-
-						<cdx-message
-							v-if="hasSmallLangSelected"
-							type="warning"
-							style="margin-bottom: 8px"
-						>
-							Diqqət! Digər vikilərdən üst kateqoriyaların əlavə edilməsi riski
-							yüksəkdir. Nəticələri diqqətlə yoxlayın.
-						</cdx-message>
-
-						<div v-if="showSearch" class="catsuggest-search">
-							<cdx-text-input
-								:start-icon="icons.search"
-								:model-value="siteFilter"
-								@update:model-value="
-									(val) => {
-										siteFilter = val;
-										onSiteFilterInput(val);
-									}
-								"
-								placeholder="Dillərdə axtar..."
-								aria-label="Dillərdə axtar"
-								:clearable="true"
-							/>
-						</div>
-
-						<div :class="gridClass">
-							<div
-								v-if="filteredSitelinks.length === 0"
-								style="
-									color: var(--color-subtle, #72777d);
-									font-size: 14px;
-									padding: 8px 0;
-									grid-column: 1 / -1;
-								"
-							>
-								Heç bir dil tapılmadı.
+						<template #title>Təklif alınacaq dillər</template>
+						<template #description>{{ selectedLanguagesText }} seçilib.</template>
+						<div class="catsuggest-site-section">
+							<div class="catsuggest-header">
+								<p class="catsuggest-header__label">Dilləri seç:</p>
+								<cdx-toggle-switch v-model="allSelected" :disabled="loading">
+									Bütün dilləri seç ({{ filteredSitelinks.length }})
+								</cdx-toggle-switch>
 							</div>
-							<div v-for="site in filteredSitelinks" :key="site.site">
-								<cdx-checkbox
-									v-model="selectedSites"
-									:inputValue="site.site"
-									:disabled="loading"
+
+							<cdx-tabs
+								v-model:active="langTab"
+								style="margin-top: 12px; margin-bottom: 12px"
+							>
+								<cdx-tab
+									name="large"
+									:label="largeTabLabel"
+									:disabled="loading || largeSitelinks.length === 0"
+								/>
+								<cdx-tab
+									name="small"
+									:label="smallTabLabel"
+									:disabled="loading || smallSitelinks.length === 0"
+								/>
+							</cdx-tabs>
+
+							<cdx-message
+								v-if="hasSmallLangSelected"
+								type="warning"
+								style="margin-bottom: 8px"
+							>
+								Diqqət! Digər vikilərdən üst kateqoriyaların əlavə edilməsi riski
+								yüksəkdir. Nəticələri diqqətlə yoxlayın.
+							</cdx-message>
+
+							<div v-if="showSearch" class="catsuggest-search">
+								<cdx-text-input
+									:start-icon="icons.search"
+									:model-value="siteFilter"
+									@update:model-value="
+										(val) => {
+											siteFilter = val;
+											onSiteFilterInput(val);
+										}
+									"
+									placeholder="Dillərdə axtar..."
+									aria-label="Dillərdə axtar"
+									:clearable="true"
+								/>
+							</div>
+
+							<div :class="gridClass">
+								<div
+									v-if="filteredSitelinks.length === 0"
+									style="
+										color: var(--color-subtle, #72777d);
+										font-size: 14px;
+										padding: 8px 0;
+										grid-column: 1 / -1;
+									"
 								>
-									{{ site.name }} ({{ site.lang }})
+									Heç bir dil tapılmadı.
+								</div>
+								<div v-for="site in filteredSitelinks" :key="site.site">
+									<cdx-checkbox
+										v-model="selectedSites"
+										:inputValue="site.site"
+										:disabled="loading"
+									>
+										{{ site.name }} ({{ site.lang }})
+									</cdx-checkbox>
+								</div>
+							</div>
+
+							<div style="margin-top: 8px">
+								<cdx-checkbox v-model="rememberLangs">
+									Bu dilləri mənim üçün yadda saxla
 								</cdx-checkbox>
 							</div>
+							<cdx-message
+								v-if="selectedSites.length > 4"
+								:type="
+									selectedSites.length === sitelinks.length ? 'warning' : 'info'
+								"
+								class="catsuggest-lang-warning"
+							>
+								{{ selectedSites.length }} dil seçilib. Axtarışın təxminən
+								{{ estimatedTime }} saniyə çəkəcəyi gözlənilir.
+							</cdx-message>
 						</div>
+					</cdx-accordion>
 
-						<div style="margin-top: 8px">
-							<cdx-checkbox v-model="rememberLangs">
-								Bu dilləri mənim üçün yadda saxla
-							</cdx-checkbox>
-						</div>
-						<cdx-message
-							v-if="selectedSites.length > 4"
-							:type="selectedSites.length === sitelinks.length ? 'warning' : 'info'"
-							class="catsuggest-lang-warning"
-						>
-							{{ selectedSites.length }} dil seçilib. Axtarışın təxminən
-							{{ estimatedTime }} saniyə çəkəcəyi gözlənilir.
-						</cdx-message>
-					</div>
+					<cdx-message
+						v-if="languageSelectionChanged"
+						type="warning"
+						class="catsuggest-lang-changed-warning"
+					>
+						Dillər dəyişildi. Təkliflərin yenilənməsi üçün "Təklifləri al" düyməsinə
+						klikləyin.
+					</cdx-message>
 
 					<div v-if="status === 'loading'">
 						<cdx-progress-bar aria-label="Yüklənir" />
@@ -644,7 +664,7 @@ const {
 	getBatchOutcome,
 } = require('./workflow.js');
 const { createAsyncCache } = require('./async-cache.js');
-const { cdxIconLanguage, cdxIconSearch, cdxIconKey } = require('./icons.json');
+const { cdxIconLanguage, cdxIconSearch, cdxIconKey, cdxIconReload } = require('./icons.json');
 
 const currentPageId = mw.config.get('wgArticleId');
 
@@ -674,7 +694,12 @@ export default {
 			workflow: createWorkflowState(),
 			workflowRequestSeq: 0,
 			modal: null,
-			icons: { language: cdxIconLanguage, search: cdxIconSearch, key: cdxIconKey },
+			icons: {
+				language: cdxIconLanguage,
+				search: cdxIconSearch,
+				key: cdxIconKey,
+				reload: cdxIconReload,
+			},
 			sortKeyPopoverOpen: false,
 			sortKeyPopoverAnchor: null,
 			activeSortKeySuggestion: null,
@@ -700,6 +725,7 @@ export default {
 			editAborted: false,
 			alreadyProcessed: isCatPage && isPageProcessed(currentPageId),
 			langTab: 'large',
+			langsAccordionOpen: true,
 			fetchAbortController: null,
 			existingRemovals: [],
 			appliedSites: [],
@@ -785,6 +811,35 @@ export default {
 			const count = this.sitelinks.length;
 			const columns = Math.max(2, Math.min(3, Math.ceil(count / 10)));
 			return 'catsuggest-grid catsuggest-grid--cols-' + columns;
+		},
+		languageSelectionChanged() {
+			if (this.status !== 'results' || this.appliedSites.length === 0) {
+				return false;
+			}
+			const selected = [...this.selectedSites].sort();
+			const applied = [...this.appliedSites].sort();
+			return (
+				selected.length !== applied.length ||
+				selected.some((site, index) => site !== applied[index])
+			);
+		},
+		selectedLanguagesText() {
+			const names = this.selectedSites
+				.map((site) => {
+					const link = this.sitelinksBySite.get(site);
+					return link ? link.name || link.lang : site;
+				})
+				.filter(Boolean);
+			if (names.length === 0) {
+				return 'Heç bir dil';
+			}
+			if (names.length === 1) {
+				return names[0];
+			}
+			if (names.length <= 3) {
+				return names.slice(0, -1).join(', ') + ' və ' + names[names.length - 1];
+			}
+			return names.slice(0, 3).join(', ') + ' və ' + (names.length - 3) + ' digər';
 		},
 		largeTabLabel() {
 			return 'Əsas vikilər (' + this.largeSitelinks.length + ')';
@@ -1203,6 +1258,12 @@ export default {
 			return pageData && pageData.categories ? pageData.categories.map((c) => c.title) : [];
 		},
 
+		onAccordionFetch() {
+			if (this.canFetch) {
+				this.fetchSuggestions();
+			}
+		},
+
 		async fetchSuggestions() {
 			if (this.selectedSites.length === 0) {
 				return;
@@ -1432,6 +1493,7 @@ export default {
 					this.appliedSites = this.selectedSites.slice();
 				}
 
+				this.langsAccordionOpen = false;
 				this.dispatchWorkflow({
 					type: 'FETCH_COMPLETE',
 					requestId: request.requestId,
@@ -1872,6 +1934,7 @@ export default {
 			this.modal = null;
 			this.hasScrolledResults = false;
 			this.appliedSites = [];
+			this.langsAccordionOpen = true;
 		},
 		status(newVal) {
 			if (newVal !== 'editing' && this.modal === 'cancelEdit') {

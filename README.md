@@ -220,7 +220,7 @@ virtual `icons.json` from the `codexIcons=` option of the gadget definition, so
 bundle the full icon set and are unaffected):
 
 ```
-* catsuggest [package |dependencies=@wikimedia/codex |rights=autoconfirmed |actions=view |namespaces=0,4,12,14,100|codexIcons=cdxIconLanguage, cdxIconSearch, cdxIconKey] |catsuggest.js |catsuggest.css|catsuggest-check.json|catsuggest-config.json
+* catsuggest [package |dependencies=@wikimedia/codex |rights=autoconfirmed |actions=view |namespaces=0,4,12,14,100|codexIcons=cdxIconLanguage, cdxIconSearch, cdxIconKey, cdxIconReload] |catsuggest.js |catsuggest.css|catsuggest-check.json|catsuggest-config.json
 ```
 
 ## Source
