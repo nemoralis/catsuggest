@@ -10,13 +10,31 @@
 		</cdx-button>
 	</teleport>
 
-	<cdx-dialog
-		:open="dialogShown"
-		:title="mode === 'members' ? 'Məqalə və altkateqoriya təklifləri' : 'Kateqoriya təklifləri'"
-		:use-close-button="true"
-		close-button-label="Bağla"
-		@update:open="onDialogOpenChange"
-	>
+	<cdx-dialog :open="dialogShown" :title="dialogTitle" @update:open="onDialogOpenChange">
+		<template #header>
+			<div class="catsuggest-dialog-header">
+				<h2 class="cdx-dialog__header__title catsuggest-dialog-header__title">
+					{{ dialogTitle }}
+					<cdx-button
+						class="catsuggest-dialog-header__help"
+						weight="quiet"
+						type="button"
+						aria-label="Qadcet haqqında"
+						v-tooltip:bottom="'Qadcet haqqında'"
+						@click="openGadgetHelp"
+						>?</cdx-button
+					>
+				</h2>
+				<cdx-button
+					class="cdx-dialog__header__close-button"
+					weight="quiet"
+					type="button"
+					aria-label="Bağla"
+					@click="onDialogOpenChange(false)"
+					>×</cdx-button
+				>
+			</div>
+		</template>
 		<template #default>
 			<div v-if="status === 'idle' || status === 'loading' || status === 'results'">
 				<div v-if="isCatPage" class="catsuggest-tabs">
@@ -305,7 +323,7 @@
 													'catsuggest-suggestion__sortkey--set':
 														cat.sortKey,
 												}"
-												variation="quiet"
+												weight="quiet"
 												aria-label="Sıralama açarı təyin et"
 												@click="openSortKeyPopover(cat, $event)"
 											>
@@ -471,14 +489,6 @@
 		</template>
 		<template #footer>
 			<div class="catsuggest-footer">
-				<div class="catsuggest-footer__help">
-					<a
-						:href="getPageUrl('Vikipediya:Qadcetlər/Kateqoriya təklifçisi')"
-						target="_blank"
-						class="catsuggest-suggestion__link"
-						>Qadcet haqqında</a
-					>
-				</div>
 				<div class="catsuggest-footer__actions">
 					<cdx-button size="medium" @click="handleClose">{{
 						status === 'success' ? 'Bağla' : 'İmtina'
@@ -696,6 +706,11 @@ export default {
 		};
 	},
 	computed: {
+		dialogTitle() {
+			return this.mode === 'members'
+				? 'Məqalə və altkateqoriya təklifləri'
+				: 'Kateqoriya təklifləri';
+		},
 		status() {
 			return getWorkflowStatus(this.workflow);
 		},
@@ -1666,6 +1681,14 @@ export default {
 
 		getPageUrl(title) {
 			return mw.util.getUrl(title);
+		},
+
+		openGadgetHelp() {
+			window.open(
+				this.getPageUrl('Vikipediya:Qadcetlər/Kateqoriya təklifçisi'),
+				'_blank',
+				'noopener'
+			);
 		},
 
 		displayCategoryTitle(title) {

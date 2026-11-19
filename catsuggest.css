@@ -117,16 +117,34 @@
 .catsuggest-success__hint {
 	margin-top: 8px;
 }
-.catsuggest-footer {
+.catsuggest-dialog-header {
 	display: flex;
-	justify-content: space-between;
 	align-items: center;
+	justify-content: space-between;
+	box-sizing: border-box;
 	gap: 8px;
 	width: 100%;
 }
-.catsuggest-footer__help {
-	font-size: 0.85em;
-	color: var(--color-subtle, #72777d);
+.catsuggest-dialog-header__title {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+}
+.catsuggest-dialog-header__help.cdx-button {
+	padding-right: 8px;
+	padding-left: 8px;
+	line-height: 1;
+}
+.catsuggest-dialog-header__close-button.cdx-button {
+	font-size: 20px;
+	line-height: 1;
+}
+.catsuggest-footer {
+	display: flex;
+	justify-content: flex-end;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
 }
 .catsuggest-footer__actions {
 	display: flex;
