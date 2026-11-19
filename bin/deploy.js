@@ -6,15 +6,6 @@ const path = require('path');
 const { Mwn } = require('mwn');
 const { execSync } = require('child_process');
 
-const constants = require('../src/constants.js');
-
-if (constants.DEV_MODE) {
-	console.error(
-		'\x1b[31mError: Cannot deploy while DEV_MODE is enabled in src/constants.js!\x1b[0m'
-	);
-	process.exit(1);
-}
-
 // JSON file with your username and bot password. Set up a bot password at [[Special:BotPasswords]]
 const credentials = require('../credentials.json');
 

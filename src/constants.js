@@ -18,9 +18,11 @@ const CONFIRM_BATCH_THRESHOLD = 5;
 const ANCESTOR_CHECK_DEPTH = 4;
 // Safety valve for dense/cyclic category graphs; normal pages stay well below this.
 const MAX_ANCESTOR_NODES_PER_LEVEL = 1000;
+/* global __CATSUGGEST_DEV__ */
 const ENABLE_EDIT_GROUP_LINKS = false;
-const DEBUG = true;
-const DEV_MODE = true;
+// esbuild replaces the flag with a boolean in browser builds. The typeof guard
+// keeps Node diagnostics scripts (which don't define it) working.
+const DEBUG = typeof __CATSUGGEST_DEV__ === 'boolean' ? __CATSUGGEST_DEV__ : false;
 const CACHE_TTL_LANGUAGES = 31536000;
 const CACHE_TTL_TREE = 600;
 const CACHE_TTL_FOREIGN = 60;
@@ -118,7 +120,6 @@ module.exports = {
 	MAX_ANCESTOR_NODES_PER_LEVEL,
 	ENABLE_EDIT_GROUP_LINKS,
 	DEBUG,
-	DEV_MODE,
 	CACHE_TTL_LANGUAGES,
 	CACHE_TTL_TREE,
 	CACHE_TTL_FOREIGN,

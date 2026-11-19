@@ -6,9 +6,8 @@
   "scripts": {
     "build": "node build.js --dev",
     "build:prod": "node build.js",
-    "dev": "concurrently -n build,serve \"npm run build -- --watch\" \"npm run serve:watch\"",
+    "dev": "concurrently -n build,serve \"npm run build -- --watch\" \"npm run serve\"",
     "serve": "node bin/server.js",
-    "serve:watch": "nodemon --watch dist --watch catsuggest.css --ext js,css bin/server.js",
     "deploy": "npm run test && npm run build:prod && node bin/deploy.js",
     "cattree": "node bin/cattree.js",
     "members": "node bin/members.js",
@@ -30,7 +29,6 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-config-wikimedia": "^0.32.4",
     "mwn": "^3.0.2",
-    "nodemon": "^3.1.14",
     "prettier": "^3.8.4",
     "vite": "^8.0.16",
     "vitest": "^3.0.2"

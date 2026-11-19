@@ -179,8 +179,10 @@ node bin/server.js 5501
 * `src/catsuggest-check.json` — `enabledusers` allowlist granting access to the
   members tab
 * `src/constants.js` — all tunables (batch sizes, cache TTLs, retry policy, ancestor
-  walk depth). **`DEV_MODE` and `DEBUG` must be turned off before deploying** — the
-  deploy script refuses to run while `DEV_MODE` is enabled.
+  walk depth). Dev mode and debug logging are no longer source constants: `build.js`
+  injects a build-time flag from the `--dev` option, so `npm run dev`/`npm run build`
+  produce a dev bundle while `npm run build:prod` (used by `npm run deploy`) produces
+  a production bundle with both disabled. There is nothing to toggle before deploying.
 
 ## Deployment
 

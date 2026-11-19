@@ -122,7 +122,14 @@ function vueSfcPlugin() {
 					'};'
 				].join( '\n' );
 
-				return { contents: combined, loader: 'js', resolveDir: path.dirname( args.path ) };
+				return {
+					contents: combined,
+					loader: 'js',
+					resolveDir: path.dirname( args.path ),
+					// The custom vue-sfc namespace isn't watched automatically, so tell
+					// esbuild about the real file to rebuild when a component changes.
+					watchFiles: [ args.path ]
+				};
 			} );
 		}
 	};
@@ -137,6 +144,9 @@ async function build() {
 		target: 'es2017',
 		outfile: 'dist/catsuggest.js',
 		external: [ 'vue', '@wikimedia/codex', 'mediawiki.ForeignApi', 'mediawiki.util', 'mediawiki.storage', 'mediawiki.Title' ],
+		define: {
+			__CATSUGGEST_DEV__: JSON.stringify( isDev )
+		},
 		plugins: [ externalizeJsonPlugin(), vueSfcPlugin() ],
 		minify: !isDev,
 		banner: {

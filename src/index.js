@@ -1,7 +1,8 @@
-const { ALLOWED_NAMESPACES, DEV_MODE, log } = require('./constants.js');
+/* global __CATSUGGEST_DEV__ */
+const { ALLOWED_NAMESPACES, log } = require('./constants.js');
 const { createLocalApi, createWikidataApi } = require('./api.js');
 
-const enabledUsers = DEV_MODE ? [] : require('./catsuggest-check.json').enabledusers;
+const enabledUsers = __CATSUGGEST_DEV__ ? [] : require('./catsuggest-check.json').enabledusers;
 
 mw.loader
 	.using([
@@ -37,19 +38,24 @@ mw.loader
 
 		const userGroups = mw.config.get('wgUserGroups') || [];
 		const isAuthorized =
-			DEV_MODE ||
+			__CATSUGGEST_DEV__ ||
 			userGroups.includes('sysop') ||
 			userGroups.includes('interface-admin') ||
 			(Array.isArray(enabledUsers) && enabledUsers.includes(currentUser));
 
 		log('User:', currentUser, '| Authorized:', isAuthorized, '| Groups:', userGroups);
-		if (DEV_MODE) {
+		if (__CATSUGGEST_DEV__) {
 			mw.log.warn('[CatSuggest] Dev mode active');
 		}
 		const createAppComponent = require('./App.vue');
 		const App = createAppComponent(Vue, codex);
 
-		const app = createMwApp(App, { isAuthorized, api, wikidataApi, devMode: DEV_MODE });
+		const app = createMwApp(App, {
+			isAuthorized,
+			api,
+			wikidataApi,
+			devMode: __CATSUGGEST_DEV__,
+		});
 
 		const container = document.createElement('div');
 		document.body.appendChild(container);
