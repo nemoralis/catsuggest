@@ -88,6 +88,15 @@ Always run `npm test` after a behavior change; add or update tests in `tests/`.
   format `## [x.y.z] - YYYY-MM-DD` so extraction works. The default-branch pipeline has
   manual `backfill_v2_1_0` / `backfill_v2_0_0` jobs for one-click backfills.
 
+## Documentation sources
+
+- For UI and component questions, use the official Wikimedia Codex documentation:
+  https://doc.wikimedia.org/codex/latest/
+- For MediaWiki frontend/gadget conventions, use:
+  https://www.mediawiki.org/wiki/Manual:Interface/JavaScript
+- Prefer these over generic web searches or third-party component libraries; the
+  gadget runs as a MediaWiki gadget with Codex supplied by the platform.
+
 ## Working style
 
 - Discuss/plan non-trivial changes first; ask rather than assume, especially about UI wording
