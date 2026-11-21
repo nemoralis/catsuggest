@@ -237,10 +237,6 @@ pushing a `v*` tag runs the CI `release` job, which extracts that version's sect
 `CHANGELOG.md` and creates or updates the matching GitLab Release. Re-running a tag
 pipeline updates the same release in place.
 
-For tags pushed before this job existed, the default-branch pipeline also has two
-manual backfill jobs: `backfill_v2_1_0` and `backfill_v2_0_0`. Press play on the one you
-need; it uses the same changelog extraction and updates the release in place.
-
 ### Gadget definition
 
 The sort-key button uses `cdxIconKey` and its text input uses `cdxIconSortVertical`. In

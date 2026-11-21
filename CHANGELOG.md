@@ -4,6 +4,8 @@ All notable changes to CatSuggest are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
 ## [2.1.0] - 2026-11-21
 
 ### Added
@@ -60,5 +62,6 @@ All notable changes to CatSuggest are documented here. The format follows
 
 - Retroactive baseline tag for the commit preceding this changelog's range.
 
+[Unreleased]: https://gitlab.wikimedia.org/nmw03/catsuggest/-/compare/v2.1.0...HEAD
 [2.1.0]: https://gitlab.wikimedia.org/nmw03/catsuggest/-/compare/v2.0.0...v2.1.0
 [2.0.0]: https://gitlab.wikimedia.org/nmw03/catsuggest/-/releases/v2.0.0
