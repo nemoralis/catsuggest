@@ -353,7 +353,17 @@
 												<cdx-icon :icon="icons.key" />
 											</cdx-button>
 											<span
-												v-if="cat.sources && cat.sources.length"
+												v-if="cat.isWikidataDerived"
+												class="catsuggest-suggestion__sources"
+												v-tooltip:bottom="'Bu təklif Vikidatadan gəlir.'"
+											>
+												<cdx-icon
+													:icon="icons.wikidata"
+													aria-label="Vikidata"
+												/>
+											</span>
+											<span
+												v-else-if="cat.sources && cat.sources.length"
 												class="catsuggest-suggestion__sources"
 												v-tooltip:bottom="suggestionTooltip(cat)"
 											>
@@ -657,6 +667,7 @@ const {
 	fetchFullQuery,
 	createForeignApi,
 } = require('./api.js');
+const { fetchWikidataDerivedCategories } = require('./wikidata-categories.js');
 const {
 	loadSiteMetadata,
 	isPageProcessed,
@@ -702,6 +713,7 @@ const {
 	cdxIconKey,
 	cdxIconReload,
 	cdxIconSortVertical,
+	cdxIconLogoWikidata,
 } = require('./icons.json');
 
 const currentPageId = mw.config.get('wgArticleId');
@@ -747,6 +759,7 @@ export default {
 				key: cdxIconKey,
 				reload: cdxIconReload,
 				sortVertical: cdxIconSortVertical,
+				wikidata: cdxIconLogoWikidata,
 			},
 			sortKeyPopoverOpen: false,
 			sortKeyPopoverAnchor: null,
@@ -1424,6 +1437,10 @@ export default {
 			try {
 				const sitesToProcess = this.selectedSites.slice();
 				const localStatePromise = this.fetchLocalState();
+				const wikidataCategoriesPromise =
+					mode === 'parentCats'
+						? fetchWikidataDerivedCategories(this.wikidataApi, this.qid)
+						: Promise.resolve([]);
 
 				if (this.rememberLangs) {
 					mw.storage.set(
@@ -1509,7 +1526,12 @@ export default {
 					return;
 				}
 
-				if (globalCatToSites.size === 0) {
+				const wikidataTitles = await wikidataCategoriesPromise;
+				if (!this.isCurrentRequest(request)) {
+					return;
+				}
+
+				if (globalCatToSites.size === 0 && wikidataTitles.length === 0) {
 					this.dispatchWorkflow({
 						type: 'FETCH_FAIL',
 						requestId: request.requestId,
@@ -1529,6 +1551,14 @@ export default {
 						redirectSites: Array.from(redirectResolvedCatToSites.get(title) || []),
 					})
 				);
+				const seenResolvedTitles = new Set(resolvedResults.map((r) => r.title));
+				wikidataTitles.forEach((title) => {
+					if (seenResolvedTitles.has(title)) {
+						return;
+					}
+					seenResolvedTitles.add(title);
+					resolvedResults.push({ title, sources: [], isWikidataDerived: true });
+				});
 
 				if (resolvedResults.length === 0) {
 					this.dispatchWorkflow({

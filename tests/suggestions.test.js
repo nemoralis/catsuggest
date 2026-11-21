@@ -558,6 +558,24 @@ describe('buildParentCatsSuggestions', () => {
 		expect(titles).not.toContain('Kateqoriya:Şablonlar');
 	});
 
+	it('should skip keyword exclusion for Wikidata-derived categories only', async () => {
+		const mockGet = vi.fn(async () => ({ query: { pages: {} } }));
+
+		const { suggestions } = await buildParentCatsSuggestions(
+			[
+				{ title: 'Kateqoriya:Yaşayan insanlar', sources: [], isWikidataDerived: true },
+				{ title: 'Kateqoriya:Yaşayan insanlar 2', sources: [] },
+			],
+			[],
+			{ get: mockGet },
+			'Some article'
+		);
+
+		expect(suggestions).toHaveLength(1);
+		expect(suggestions[0].title).toBe('Kateqoriya:Yaşayan insanlar');
+		expect(suggestions[0].isWikidataDerived).toBe(true);
+	});
+
 	it('should still exclude template categories without template context', async () => {
 		const mockGet = vi.fn(async () => ({ query: { pages: {} } }));
 

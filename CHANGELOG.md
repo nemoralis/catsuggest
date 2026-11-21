@@ -6,6 +6,15 @@ All notable changes to CatSuggest are documented here. The format follows
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-11-21
+
+### Added
+
+- Parent-cats suggestions now include Wikidata-derived categories from `P463` → `P6365`
+  (member category) and `P39` → `P2354` → `P910` (position → corresponding list → topic
+  category). These bypass `excludedTitleKeywords` but still respect all other filters.
+  They show a Wikidata-logo icon with a tooltip instead of the usual language chip.
+
 ## [2.1.0] - 2026-11-21
 
 ### Added
@@ -62,6 +71,7 @@ All notable changes to CatSuggest are documented here. The format follows
 
 - Retroactive baseline tag for the commit preceding this changelog's range.
 
-[Unreleased]: https://gitlab.wikimedia.org/nmw03/catsuggest/-/compare/v2.1.0...HEAD
+[Unreleased]: https://gitlab.wikimedia.org/nmw03/catsuggest/-/compare/v2.2.0...HEAD
+[2.2.0]: https://gitlab.wikimedia.org/nmw03/catsuggest/-/compare/v2.1.0...v2.2.0
 [2.1.0]: https://gitlab.wikimedia.org/nmw03/catsuggest/-/compare/v2.0.0...v2.1.0
 [2.0.0]: https://gitlab.wikimedia.org/nmw03/catsuggest/-/releases/v2.0.0

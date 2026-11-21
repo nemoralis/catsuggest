@@ -75,12 +75,19 @@ Always run `npm test` after a behavior change; add or update tests in `tests/`.
 - Structural/tracking template categories are excluded independently of keyword casing.
 - Do not edit `catsuggest-config.json` or `catsuggest-check.json` without asking first.
 
+### Wikidata-derived categories
+
+- Parent-cats merges categories from `src/wikidata-categories.js`: `P463` → `P6365` and
+  `P39` → `P2354` → `P910`. They are marked `isWikidataDerived` and bypass
+  `excludedTitleKeywords` only; hard exclusions and graph filters still apply.
+- Keep the resolver cached by QID and bounded (no unbounded property expansion).
+
 ### Build, deploy and releases
 
 - Dev mode is build-time only (`__CATSUGGEST_DEV__` injected by `build.js` from `--dev`).
   Production bundles must not contain the dev authorization bypass.
 - The on-wiki gadget definition must include namespace `10` and icons `cdxIconKey`,
-  `cdxIconReload`, `cdxIconSortVertical` in addition to the existing set.
+  `cdxIconReload`, `cdxIconSortVertical`, `cdxIconLogoWikidata` in addition to the existing set.
 - Releases use SemVer annotated tags (`v2.0.0`, `v2.1.0`, …) and `CHANGELOG.md`; bump
   `package.json`/`package-lock.json` together with the tag.
 - Pushing a `v*` tag runs `.gitlab-ci.yml`'s `release` job, which creates/updates the

@@ -23,6 +23,9 @@ requires a logged-in user and a page linked to Wikidata. There are two modes:
   offered for removal, with a tree showing why. Each suggested category has a key
   button that opens a popover where a [sort key](https://www.mediawiki.org/wiki/Help:Categories#Sort_key)
   can be entered; it is written into the category link as `[[Kateqoriya:Foo|key]]`.
+  Wikidata-derived categories are merged in as extra suggestions: `P463` → `P6365`
+  (member category) and `P39` → `P2354` → `P910` (position → list → topic category).
+  These bypass `excludedTitleKeywords` but still respect all other filters.
 * **Members** (`Məqalə və altkateqoriya`, category pages, restricted to sysops,
   interface-admins and [allowlisted users](#configuration)): suggests articles,
   subcategories and — on topical template categories — templates to add to the current
@@ -239,13 +242,14 @@ pipeline updates the same release in place.
 
 ### Gadget definition
 
-The sort-key button uses `cdxIconKey` and its text input uses `cdxIconSortVertical`. In
-production the Gadgets extension builds the virtual `icons.json` from the `codexIcons=`
-option of the gadget definition, so both icons must be added to that list when adopting
-this version (development builds bundle the full icon set and are unaffected):
+The sort-key button uses `cdxIconKey`, its text input uses `cdxIconSortVertical`, and the
+Wikidata provenance icon uses `cdxIconLogoWikidata`. In production the Gadgets extension
+builds the virtual `icons.json` from the `codexIcons=` option of the gadget definition, so
+these icons must be added to that list when adopting this version (development builds
+bundle the full icon set and are unaffected):
 
 ```
-* catsuggest [package |dependencies=@wikimedia/codex |rights=autoconfirmed |actions=view |namespaces=0,4,10,12,14,100|codexIcons=cdxIconLanguage, cdxIconSearch, cdxIconKey, cdxIconReload, cdxIconSortVertical] |catsuggest.js |catsuggest.css|catsuggest-check.json|catsuggest-config.json
+* catsuggest [package |dependencies=@wikimedia/codex |rights=autoconfirmed |actions=view |namespaces=0,4,10,12,14,100|codexIcons=cdxIconLanguage, cdxIconSearch, cdxIconKey, cdxIconReload, cdxIconSortVertical, cdxIconLogoWikidata] |catsuggest.js |catsuggest.css|catsuggest-check.json|catsuggest-config.json
 ```
 
 ## Source

@@ -599,7 +599,7 @@ async function buildParentCatsSuggestions(
 		if (EXCLUDED_TITLES.has(r.title)) {
 			return;
 		}
-		if (isExcludedTitle(r.title, { allowTemplateCategories })) {
+		if (!r.isWikidataDerived && isExcludedTitle(r.title, { allowTemplateCategories })) {
 			return;
 		}
 		const resolvedTitle = resolveRedirectTitle(r.title, azwikiRedirectMap);
@@ -634,6 +634,7 @@ async function buildParentCatsSuggestions(
 			title: resolvedTitle,
 			selected: !(isAzwikiRedirect || hasEntries(baseSites)),
 			sources: r.sources,
+			isWikidataDerived: r.isWikidataDerived === true,
 			sortKey: '',
 			azRedirectFrom: isAzwikiRedirect ? r.title : undefined,
 			redirectSites: isAzwikiRedirect
