@@ -10,31 +10,14 @@
 		</cdx-button>
 	</teleport>
 
-	<cdx-dialog :open="dialogShown" :title="dialogTitle" @update:open="onDialogOpenChange">
-		<template #header>
-			<div class="catsuggest-dialog-header">
-				<h2 class="cdx-dialog__header__title catsuggest-dialog-header__title">
-					{{ dialogTitle }}
-					<cdx-button
-						class="catsuggest-dialog-header__help"
-						weight="quiet"
-						type="button"
-						aria-label="Qadcet haqqında"
-						v-tooltip:bottom="'Qadcet haqqında'"
-						@click="openGadgetHelp"
-						>?</cdx-button
-					>
-				</h2>
-				<cdx-button
-					class="cdx-dialog__header__close-button"
-					weight="quiet"
-					type="button"
-					aria-label="Bağla"
-					@click="onDialogOpenChange(false)"
-					>×</cdx-button
-				>
-			</div>
-		</template>
+	<cdx-dialog
+		class="catsuggest-main-dialog"
+		:open="dialogShown"
+		:title="dialogTitle"
+		:use-close-button="true"
+		close-button-label="Bağla"
+		@update:open="onDialogOpenChange"
+	>
 		<template #default>
 			<div v-if="status === 'idle' || status === 'loading' || status === 'results'">
 				<div v-if="isCatPage" class="catsuggest-tabs">
@@ -1975,6 +1958,33 @@ export default {
 			);
 		},
 
+		// Codex renders the dialog title itself, so attach the help link to it
+		// as a real <a> after the dialog is mounted. This keeps the native close
+		// button while putting "?" right next to the label.
+		syncDialogHelpLink() {
+			const dialog = document.querySelector('.catsuggest-main-dialog');
+			if (!dialog) {
+				return;
+			}
+			const title = dialog.querySelector('.cdx-dialog__header__title');
+			if (!title) {
+				return;
+			}
+			const previous = title.querySelector('.catsuggest-dialog-help');
+			if (previous) {
+				previous.remove();
+			}
+			const link = document.createElement('a');
+			link.className = 'catsuggest-dialog-help';
+			link.href = this.getPageUrl('Vikipediya:Qadcetlər/Kateqoriya təklifçisi');
+			link.target = '_blank';
+			link.rel = 'noopener';
+			link.title = 'Qadcet haqqında';
+			link.setAttribute('aria-label', 'Qadcet haqqında');
+			link.textContent = '?';
+			title.appendChild(link);
+		},
+
 		displayCategoryTitle(title) {
 			return String(title).replace(/^(?:Kateqoriya|Category):/i, '');
 		},
@@ -2172,6 +2182,14 @@ export default {
 		}, DEBOUNCE_MS),
 	},
 	watch: {
+		dialogShown(open) {
+			if (open) {
+				this.$nextTick(() => this.syncDialogHelpLink());
+			}
+		},
+		dialogTitle() {
+			this.$nextTick(() => this.syncDialogHelpLink());
+		},
 		mode() {
 			if (this.fetchAbortController) {
 				this.fetchAbortController.abort();
