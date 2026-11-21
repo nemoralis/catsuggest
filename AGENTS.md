@@ -85,7 +85,8 @@ Always run `npm test` after a behavior change; add or update tests in `tests/`.
   `package.json`/`package-lock.json` together with the tag.
 - Pushing a `v*` tag runs `.gitlab-ci.yml`'s `release` job, which creates/updates the
   GitLab Release from that version's `CHANGELOG.md` section. Keep the changelog heading
-  format `## [x.y.z] - YYYY-MM-DD` so extraction works.
+  format `## [x.y.z] - YYYY-MM-DD` so extraction works. The manual `backfill_release`
+  job on the default branch does the same for an arbitrary `RELEASE_VERSION`.
 
 ## Working style
 
