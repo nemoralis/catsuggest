@@ -6,6 +6,13 @@ All notable changes to CatSuggest are documented here. The format follows
 
 ## [Unreleased]
 
+## [2.2.1] - 2026-11-21
+
+### Fixed
+
+- The sort-key popover no longer mounts without an anchor, which caused Codex errors that
+  aborted rendering of the results area (missing sort-key buttons and Wikidata icon).
+
 ## [2.2.0] - 2026-11-21
 
 ### Added
@@ -71,7 +78,8 @@ All notable changes to CatSuggest are documented here. The format follows
 
 - Retroactive baseline tag for the commit preceding this changelog's range.
 
-[Unreleased]: https://gitlab.wikimedia.org/nmw03/catsuggest/-/compare/v2.2.0...HEAD
+[Unreleased]: https://gitlab.wikimedia.org/nmw03/catsuggest/-/compare/v2.2.1...HEAD
+[2.2.1]: https://gitlab.wikimedia.org/nmw03/catsuggest/-/compare/v2.2.0...v2.2.1
 [2.2.0]: https://gitlab.wikimedia.org/nmw03/catsuggest/-/compare/v2.1.0...v2.2.0
 [2.1.0]: https://gitlab.wikimedia.org/nmw03/catsuggest/-/compare/v2.0.0...v2.1.0
 [2.0.0]: https://gitlab.wikimedia.org/nmw03/catsuggest/-/releases/v2.0.0

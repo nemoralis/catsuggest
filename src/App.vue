@@ -464,6 +464,7 @@
 							</div>
 						</div>
 						<cdx-popover
+							v-if="sortKeyPopoverOpen && sortKeyPopoverAnchor"
 							v-model:open="sortKeyPopoverOpen"
 							:anchor="sortKeyPopoverAnchor"
 							:render-in-place="true"
