@@ -524,6 +524,9 @@
 		</template>
 		<template #footer>
 			<div class="catsuggest-footer">
+				<p class="cdx-dialog__footer__text">
+					Qadcetlə edəcəyiniz redaktələrə görə siz məsuliyyət daşıyırsınız.
+				</p>
 				<div class="catsuggest-footer__actions">
 					<cdx-button size="medium" @click="handleClose">{{
 						status === 'success' ? 'Bağla' : 'İmtina'
