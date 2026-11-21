@@ -412,28 +412,39 @@
 													>{{ displayCategoryTitle(rem.title) }}</a
 												></s
 											>
-											<template #description
-												><span
-													v-for="node in rem.flatTree"
-													:key="node.title"
-													:style="{
-														display: 'block',
-														paddingLeft: node.depth * 24 + 4 + 'px',
+											<template #description>
+												<ul
+													class="catsuggest-removal-reasons"
+													:class="{
+														'catsuggest-removal-reasons--single':
+															rem.flatTree.length <= 1,
 													}"
-													><span v-if="node.depth > 0">{{
-														node.isLast ? '└─ ' : '├─ '
-													}}</span
-													><a
-														:href="getPageUrl(node.title)"
-														target="_blank"
-														style="
-															text-decoration: none;
-															color: var(--color-progressive, #36c);
-														"
-														>{{ displayCategoryTitle(node.title) }}</a
-													></span
-												></template
-											>
+												>
+													<li
+														v-for="node in rem.flatTree"
+														:key="node.title"
+														:class="{
+															'catsuggest-removal-reason--child':
+																node.depth > 0,
+														}"
+														:style="{
+															paddingLeft: node.depth * 24 + 4 + 'px',
+														}"
+													>
+														<span v-if="node.depth > 0">{{
+															node.isLast ? '└─ ' : '├─ '
+														}}</span>
+														<a
+															:href="getPageUrl(node.title)"
+															target="_blank"
+															class="catsuggest-suggestion__link"
+															>{{
+																displayCategoryTitle(node.title)
+															}}</a
+														>
+													</li>
+												</ul>
+											</template>
 										</cdx-checkbox>
 									</div>
 								</cdx-accordion>

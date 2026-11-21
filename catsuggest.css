@@ -94,6 +94,18 @@
 .catsuggest-sortkey-apply-all {
 	margin-top: 8px;
 }
+.catsuggest-removal-reasons {
+	margin: 0;
+	padding-left: 1.6em;
+	list-style: disc;
+}
+.catsuggest-removal-reasons--single {
+	padding-left: 0;
+	list-style: none;
+}
+.catsuggest-removal-reasons .catsuggest-removal-reason--child {
+	list-style: none;
+}
 .catsuggest-suggestion__sources {
 	display: inline-flex;
 	gap: 4px;
