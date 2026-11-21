@@ -3,7 +3,7 @@
 		<cdx-button
 			size="medium"
 			:action="devMode ? 'destructive' : 'progressive'"
-			:disabled="!qid"
+			:disabled="!qid || !pageEditable"
 			@click="toggleDialog"
 		>
 			{{ isCatPage ? 'Təkliflər' : 'Kateqoriya təklifləri' }}
@@ -714,6 +714,7 @@ export default {
 			dialogShown: false,
 			suggestions: [],
 			qid: mw.config.get('wgWikibaseItemId'),
+			pageEditable: mw.config.get('wgIsProbablyEditable') !== false,
 			selectedSuggestions: [],
 			workflow: createWorkflowState(),
 			workflowRequestSeq: 0,
