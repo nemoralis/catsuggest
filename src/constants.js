@@ -1,6 +1,10 @@
 const cfg = require('./catsuggest-config.json');
 
-const ALLOWED_NAMESPACES = [0, 4, 12, 14, 100];
+const ALLOWED_NAMESPACES = [0, 4, 10, 12, 14, 100];
+// Templates can be edited by the gadget, but they are not offered as members
+// of a category (that behavior is intentionally unchanged for now).
+const MEMBER_SUGGESTION_NAMESPACES = [0, 4, 12, 14, 100];
+const TEMPLATE_NAMESPACE = 10;
 const CATEGORY_NAMESPACE = 14;
 const CURRENT_WIKI = 'azwiki';
 const CATEGORY_PREFIX = 'Kateqoriya:';
@@ -74,6 +78,40 @@ function generateBatchId() {
 }
 
 const AZ_PLURAL_SUFFIXES = ['lar', 'lər'];
+const TEMPLATE_CATEGORY_KEYWORD = 'şablonlar';
+
+/**
+ * Whether a category about templates is structural/maintenance rather than a
+ * topical category that makes sense to add to a template page.
+ *
+ * @param {string} title
+ * @return {boolean}
+ */
+function isNonTopicalTemplateCategory(title) {
+	const normalized = title.replace(/_/g, ' ').trim();
+	return (
+		normalized === 'Kateqoriya:Şablonlar' ||
+		normalized.startsWith('Kateqoriya:Şablonlar:') ||
+		normalized.startsWith('Kateqoriya:Vikipediya') ||
+		normalized.includes('istifadə edən')
+	);
+}
+
+/**
+ * Whether a category is a topical template category (e.g.
+ * "Kateqoriya:Riyazi formatlama şablonları") rather than a project or tracking
+ * category that merely mentions templates.
+ *
+ * @param {string} title
+ * @return {boolean}
+ */
+function isTopicalTemplateCategory(title) {
+	const normalized = title.replace(/_/g, ' ').trim();
+	return (
+		normalized.toLowerCase().includes(TEMPLATE_CATEGORY_KEYWORD) &&
+		!isNonTopicalTemplateCategory(normalized)
+	);
+}
 
 /**
  * Check whether two category titles are the same category, treating singular/plural
@@ -102,6 +140,8 @@ function getUserLangsKey(mode) {
 
 module.exports = {
 	ALLOWED_NAMESPACES,
+	MEMBER_SUGGESTION_NAMESPACES,
+	TEMPLATE_NAMESPACE,
 	CATEGORY_NAMESPACE,
 	CURRENT_WIKI,
 	CATEGORY_PREFIX,
@@ -141,6 +181,9 @@ module.exports = {
 	EXCLUDED_KEYWORD_ALLOW_PATTERNS,
 	EXCLUDED_TITLES,
 	REMOVAL_EXCLUDED_KEYWORDS,
+	TEMPLATE_CATEGORY_KEYWORD,
+	isNonTopicalTemplateCategory,
+	isTopicalTemplateCategory,
 	isSameCategoryIgnoringPlural,
 	getUserLangsKey,
 	LARGE_WIKI_SITES,

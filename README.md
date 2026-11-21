@@ -10,9 +10,9 @@ and lets the user apply the result in a single dialog.
 
 ## How it works
 
-The gadget appears as a button below the category box on articles and category pages
-(namespaces: main, project, help, category, portal). It requires a logged-in user and a
-page linked to Wikidata. There are two modes:
+The gadget appears as a button below the category box on articles, category pages and
+base template pages (namespaces: main, project, template, help, category, portal). It
+requires a logged-in user and a page linked to Wikidata. There are two modes:
 
 * **Parent categories** (`Kateqoriya təklifləri`, available on every allowed page):
   collects the categories of the same article on selected foreign Wikipedias and
@@ -24,10 +24,20 @@ page linked to Wikidata. There are two modes:
   button that opens a popover where a [sort key](https://www.mediawiki.org/wiki/Help:Categories#Sort_key)
   can be entered; it is written into the category link as `[[Kateqoriya:Foo|key]]`.
 * **Members** (`Məqalə və altkateqoriya`, category pages, restricted to sysops,
-  interface-admins and [allowlisted users](#configuration)): suggests articles and
-  subcategories to add to the current category, based on the members of the same-named
-  category on foreign Wikipedias. Pages that are already members, or that live inside
-  an existing subcategory, are excluded.
+  interface-admins and [allowlisted users](#configuration)): suggests articles,
+  subcategories and — on topical template categories — templates to add to the current
+  category, based on the members of the same-named category on foreign Wikipedias.
+  Pages that are already members, or that live inside an existing subcategory, are
+  excluded. Project and tracking template categories keep members mode disabled.
+
+On templates only additions are supported. If `Şablon:Foo/doc` exists, categories are
+written into its `<includeonly>` block (creating one if needed); otherwise they go into
+a `<noinclude>` block on the template itself. A doc-page redirect is followed, redundant
+links in either location are skipped, and the launcher is enabled based on the
+editability of the page that will actually be changed. Template subpages and templates
+whose content model is not wikitext are excluded. When a template is added as a category
+member, the same edit path is used, followed by a null edit of the template so its
+category index updates immediately.
 
 Both modes cache aggressively in `mw.storage` (foreign results, local member trees,
 site metadata, language preferences) and warn when a suggestion came from a redirect
@@ -176,6 +186,12 @@ node bin/server.js 5501
   * `excludedTitles` — hard-excluded category titles
   * `removalExcludedKeywords` — keywords that block redundancy-based removals
   * `largeWikiSites` — wikis shown in the default "Əsas vikilər" tab
+
+  The generic `şablonlar` keyword has contextual exceptions: topical template
+  categories may be suggested to templates, and templates being categorized may
+  receive topical template categories. Project and tracking template categories
+  remain excluded.
+
 * `src/catsuggest-check.json` — `enabledusers` allowlist granting access to the
   members tab
 * `src/constants.js` — all tunables (batch sizes, cache TTLs, retry policy, ancestor
@@ -222,7 +238,7 @@ option of the gadget definition, so both icons must be added to that list when a
 this version (development builds bundle the full icon set and are unaffected):
 
 ```
-* catsuggest [package |dependencies=@wikimedia/codex |rights=autoconfirmed |actions=view |namespaces=0,4,12,14,100|codexIcons=cdxIconLanguage, cdxIconSearch, cdxIconKey, cdxIconReload, cdxIconSortVertical] |catsuggest.js |catsuggest.css|catsuggest-check.json|catsuggest-config.json
+* catsuggest [package |dependencies=@wikimedia/codex |rights=autoconfirmed |actions=view |namespaces=0,4,10,12,14,100|codexIcons=cdxIconLanguage, cdxIconSearch, cdxIconKey, cdxIconReload, cdxIconSortVertical] |catsuggest.js |catsuggest.css|catsuggest-check.json|catsuggest-config.json
 ```
 
 ## Source

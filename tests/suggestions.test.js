@@ -9,7 +9,10 @@ global.mw = {
 			this.title = t;
 		}
 		getNamespaceId() {
-			return this.title.startsWith('Kateqoriya:') ? 14 : 0;
+			if (this.title.startsWith('Kateqoriya:')) {
+				return 14;
+			}
+			return this.title.startsWith('Şablon:') ? 10 : 0;
 		}
 	},
 	log: { warn: () => {}, debug: () => {} },
@@ -63,10 +66,7 @@ describe('walkAncestors', () => {
 			...silent,
 		});
 
-		expect(Array.from(result.ancestors).sort()).toEqual([
-			'Kateqoriya:B',
-			'Kateqoriya:C',
-		]);
+		expect(Array.from(result.ancestors).sort()).toEqual(['Kateqoriya:B', 'Kateqoriya:C']);
 		expect(result.ancestors.has('Kateqoriya:D')).toBe(false);
 		expect(result.depth).toBe(2);
 	});
@@ -499,9 +499,7 @@ describe('buildParentCatsSuggestions', () => {
 			'Xristian terminologiyası'
 		);
 
-		expect(suggestions.map((s) => s.title)).toEqual([
-			'Kateqoriya:Xristian terminologiyası',
-		]);
+		expect(suggestions.map((s) => s.title)).toEqual(['Kateqoriya:Xristian terminologiyası']);
 	});
 
 	it('should propagate foreign names from foreignNamesByTitle', async () => {
@@ -526,9 +524,146 @@ describe('buildParentCatsSuggestions', () => {
 			{ lang: 'en', name: 'Category:Redirect parent' },
 		]);
 	});
+
+	it('should allow topical template categories on template pages', async () => {
+		const mockGet = vi.fn(async () => ({ query: { pages: {} } }));
+		const rawResults = [
+			{ title: 'Kateqoriya:Riyazi formatlama şablonları', sources: ['en'] },
+			{ title: 'Kateqoriya:Kimya şablonları', sources: ['en'] },
+			{
+				title: 'Kateqoriya:Şablonlar:TemplateStyles istifadə edən şablonlar',
+				sources: ['en'],
+			},
+			{ title: 'Kateqoriya:Vikipediya şablonları', sources: ['en'] },
+			{ title: 'Kateqoriya:Şablonlar', sources: ['en'] },
+		];
+
+		const { suggestions } = await buildParentCatsSuggestions(
+			rawResults,
+			['Kateqoriya:Sənədləşmə səhifəsi lazım olan şablonlar'],
+			{ get: mockGet },
+			'NumBlk',
+			new Set(),
+			new Map(),
+			new Map(),
+			'',
+			{ allowTemplateCategories: true }
+		);
+
+		const titles = suggestions.map((s) => s.title);
+		expect(titles).toContain('Kateqoriya:Riyazi formatlama şablonları');
+		expect(titles).toContain('Kateqoriya:Kimya şablonları');
+		expect(titles).not.toContain('Kateqoriya:Şablonlar:TemplateStyles istifadə edən şablonlar');
+		expect(titles).not.toContain('Kateqoriya:Vikipediya şablonları');
+		expect(titles).not.toContain('Kateqoriya:Şablonlar');
+	});
+
+	it('should still exclude template categories without template context', async () => {
+		const mockGet = vi.fn(async () => ({ query: { pages: {} } }));
+
+		const { suggestions } = await buildParentCatsSuggestions(
+			[{ title: 'Kateqoriya:Riyazi formatlama şablonları', sources: ['en'] }],
+			[],
+			{ get: mockGet },
+			'NumBlk'
+		);
+
+		expect(suggestions).toEqual([]);
+	});
+
+	it('should allow topical template parents on template category pages', async () => {
+		const mockGet = vi.fn(async () => ({ query: { pages: {} } }));
+
+		const { suggestions } = await buildParentCatsSuggestions(
+			[
+				{ title: 'Kateqoriya:Riyaziyyat şablonları', sources: ['en'] },
+				{
+					title: 'Kateqoriya:Şablonlar:TemplateStyles istifadə edən şablonlar',
+					sources: ['en'],
+				},
+			],
+			[],
+			{ get: mockGet },
+			'Riyazi formatlama şablonları',
+			new Set(),
+			new Map(),
+			new Map(),
+			'Kateqoriya:Riyazi formatlama şablonları',
+			{ allowTemplateCategories: true }
+		);
+
+		expect(suggestions.map((s) => s.title)).toEqual(['Kateqoriya:Riyaziyyat şablonları']);
+	});
+
+	it('should offer redundant template categories as removals in template context', async () => {
+		const mockGet = vi.fn(async (params) => {
+			if (String(params.titles).includes('Kateqoriya:Riyazi formatlama şablonları')) {
+				return {
+					query: {
+						pages: {
+							1: {
+								title: 'Kateqoriya:Riyazi formatlama şablonları',
+								categories: [{ title: 'Kateqoriya:Riyaziyyat şablonları' }],
+							},
+						},
+					},
+				};
+			}
+			return { query: { pages: {} } };
+		});
+
+		const { suggestions } = await buildParentCatsSuggestions(
+			[{ title: 'Kateqoriya:Riyazi formatlama şablonları', sources: ['en'] }],
+			['Kateqoriya:Riyaziyyat şablonları'],
+			{ get: mockGet },
+			'Riyazi formatlama şablonları',
+			new Set(),
+			new Map(),
+			new Map(),
+			'',
+			{ allowTemplateCategories: true }
+		);
+
+		expect(suggestions[0].removals.map((r) => r.title)).toContain(
+			'Kateqoriya:Riyaziyyat şablonları'
+		);
+	});
 });
 
 describe('buildExistingRemovals', () => {
+	it('should include template categories in redundancy analysis when allowed', async () => {
+		const parentMap = new Map();
+		parentMap.set('Kateqoriya:Riyazi formatlama şablonları', [
+			'Kateqoriya:Riyaziyyat şablonları',
+		]);
+		parentMap.set('Kateqoriya:Riyaziyyat şablonları', []);
+		const api = { get: vi.fn(async () => ({ query: { pages: {} } })) };
+		const currentCats = [
+			'Kateqoriya:Riyazi formatlama şablonları',
+			'Kateqoriya:Riyaziyyat şablonları',
+		];
+		const options = { allowTemplateCategories: true };
+
+		const allowed = await buildExistingRemovals(
+			currentCats,
+			api,
+			new Set(),
+			parentMap,
+			'Riyazi formatlama şablonları',
+			options
+		);
+		expect(allowed.map((r) => r.title)).toEqual(['Kateqoriya:Riyaziyyat şablonları']);
+
+		const withoutContext = await buildExistingRemovals(
+			currentCats,
+			api,
+			new Set(),
+			parentMap,
+			'Riyazi formatlama şablonları'
+		);
+		expect(withoutContext).toEqual([]);
+	});
+
 	it('should use shared parentMap and skip API calls', async () => {
 		const mockGet = vi.fn();
 		const parentMap = new Map();
@@ -1494,5 +1629,99 @@ describe('buildMembersSuggestions', () => {
 				intestactionsdetail: 'quick',
 			})
 		);
+	});
+
+	it('should not suggest templates as category members outside template categories', async () => {
+		const mockGet = vi.fn(async () => ({ query: { pages: {} } }));
+
+		const suggestions = await buildMembersSuggestions(
+			[{ title: 'Şablon:Foo', sources: ['en'] }],
+			{ members: new Set(), subcats: new Set() },
+			{ get: mockGet },
+			new Set()
+		);
+
+		expect(suggestions).toEqual([]);
+	});
+
+	it('should suggest templates as category members on template categories', async () => {
+		const mockGet = vi.fn(async () => ({ query: { pages: {} } }));
+
+		const suggestions = await buildMembersSuggestions(
+			[{ title: 'Şablon:Foo', sources: ['en'] }],
+			{ members: new Set(), subcats: new Set() },
+			{ get: mockGet },
+			new Set(),
+			new Map(),
+			new Map(),
+			'',
+			{ isTemplateCategoryPage: true }
+		);
+
+		expect(suggestions.map((s) => s.title)).toEqual(['Şablon:Foo']);
+	});
+
+	it('should use the /doc editability for template members when /doc exists', async () => {
+		const mockGet = vi.fn(async (params) => {
+			if (String(params.titles).includes('/doc')) {
+				return {
+					query: {
+						pages: {
+							1: { title: 'Şablon:Foo/doc', actions: { edit: ['protected'] } },
+						},
+					},
+				};
+			}
+			return {
+				query: {
+					pages: { 1: { title: 'Şablon:Foo', actions: { edit: [] } } },
+				},
+			};
+		});
+
+		const suggestions = await buildMembersSuggestions(
+			[{ title: 'Şablon:Foo', sources: ['en'] }],
+			{ members: new Set(), subcats: new Set() },
+			{ get: mockGet },
+			new Set(),
+			new Map(),
+			new Map(),
+			'',
+			{ isTemplateCategoryPage: true }
+		);
+
+		expect(suggestions).toEqual([]);
+	});
+
+	it('should accept a template with an editable /doc even if the template is protected', async () => {
+		const mockGet = vi.fn(async (params) => {
+			if (String(params.titles).includes('/doc')) {
+				return {
+					query: {
+						pages: {
+							1: { title: 'Şablon:Foo/doc', actions: { edit: [] } },
+						},
+					},
+				};
+			}
+			return {
+				query: {
+					pages: { 1: { title: 'Şablon:Foo', actions: { edit: ['protected'] } } },
+				},
+			};
+		});
+
+		const suggestions = await buildMembersSuggestions(
+			[{ title: 'Şablon:Foo', sources: ['en'] }],
+			{ members: new Set(), subcats: new Set() },
+			{ get: mockGet },
+			new Set(),
+			new Map(),
+			new Map(),
+			'',
+			{ isTemplateCategoryPage: true }
+		);
+
+		expect(suggestions.map((s) => s.title)).toEqual(['Şablon:Foo']);
 	});
 });

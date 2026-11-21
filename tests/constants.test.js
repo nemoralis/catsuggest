@@ -2,12 +2,45 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 
 // constants.js doesn't depend on mw globals, so no setup needed
 const {
+	ALLOWED_NAMESPACES,
+	MEMBER_SUGGESTION_NAMESPACES,
+	TEMPLATE_NAMESPACE,
 	escapeRegex,
 	debounce,
 	generateBatchId,
 	REMOVAL_EXCLUDED_KEYWORDS,
 	isSameCategoryIgnoringPlural,
+	isNonTopicalTemplateCategory,
+	isTopicalTemplateCategory,
 } = await import('../src/constants.js');
+
+describe('namespaces', () => {
+	it('allows templates on gadget pages but not by default as member suggestions', () => {
+		expect(TEMPLATE_NAMESPACE).toBe(10);
+		expect(ALLOWED_NAMESPACES).toContain(10);
+		expect(MEMBER_SUGGESTION_NAMESPACES).not.toContain(10);
+	});
+});
+
+describe('template category helpers', () => {
+	it('recognizes topical template categories', () => {
+		expect(isTopicalTemplateCategory('Kateqoriya:Riyazi formatlama şablonları')).toBe(true);
+		expect(isTopicalTemplateCategory('Kateqoriya:Kimya şablonları')).toBe(true);
+		expect(isTopicalTemplateCategory('Kateqoriya:Filosoflar')).toBe(false);
+	});
+
+	it('treats project and tracking categories as non-topical', () => {
+		const structural = [
+			'Kateqoriya:Şablonlar',
+			'Kateqoriya:Şablonlar:TemplateStyles istifadə edən şablonlar',
+			'Kateqoriya:Vikipediya şablonları',
+		];
+		structural.forEach((title) => {
+			expect(isNonTopicalTemplateCategory(title)).toBe(true);
+			expect(isTopicalTemplateCategory(title)).toBe(false);
+		});
+	});
+});
 
 describe('escapeRegex', () => {
 	it('should escape special regex characters', () => {

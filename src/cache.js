@@ -7,6 +7,9 @@ const {
 	CACHE_TTL_LANGUAGES,
 	EXCLUDED_TITLE_KEYWORDS,
 	EXCLUDED_KEYWORD_ALLOW_PATTERNS,
+	TEMPLATE_CATEGORY_KEYWORD,
+	isNonTopicalTemplateCategory,
+	isTopicalTemplateCategory,
 } = require('./constants.js');
 
 let processedSet = null;
@@ -121,11 +124,20 @@ async function loadSiteMetadata(api) {
 }
 
 function isCatPageExcluded(pageName) {
+	const normalized = pageName.replace(/_/g, ' ');
+	// The generic "şablonlar" keyword keeps members mode off template
+	// categories. Topical ones are now useful in members mode, while project
+	// and tracking categories remain excluded regardless of keyword casing.
+	const hasExcludedKeyword =
+		isNonTopicalTemplateCategory(normalized) ||
+		EXCLUDED_TITLE_KEYWORDS.some(
+			(kw) =>
+				normalized.includes(kw) &&
+				!(kw === TEMPLATE_CATEGORY_KEYWORD && isTopicalTemplateCategory(normalized))
+		);
 	return (
-		EXCLUDED_TITLE_KEYWORDS.some((kw) => pageName.replace(/_/g, ' ').includes(kw)) &&
-		!EXCLUDED_KEYWORD_ALLOW_PATTERNS.some((pattern) =>
-			pattern.test(pageName.replace(/_/g, ' '))
-		)
+		hasExcludedKeyword &&
+		!EXCLUDED_KEYWORD_ALLOW_PATTERNS.some((pattern) => pattern.test(normalized))
 	);
 }
 

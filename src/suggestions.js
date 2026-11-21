@@ -9,7 +9,10 @@ const {
 	EXCLUDED_TITLES,
 	REMOVAL_EXCLUDED_KEYWORDS,
 	isSameCategoryIgnoringPlural,
-	ALLOWED_NAMESPACES,
+	MEMBER_SUGGESTION_NAMESPACES,
+	TEMPLATE_NAMESPACE,
+	TEMPLATE_CATEGORY_KEYWORD,
+	isNonTopicalTemplateCategory,
 	ANCESTOR_CHECK_DEPTH,
 	FETCH_CONCURRENCY,
 	MAX_ANCESTOR_NODES_PER_LEVEL,
@@ -50,12 +53,28 @@ function hasEntries(container) {
  * it contains an excluded keyword (drafts, maintenance, derived categories
  * like birth-year or membership categories) unless allowlisted by pattern.
  *
+ * In template contexts (template pages and topical template categories), the
+ * generic "şablonlar" keyword is skipped for topical template categories (e.g.
+ * "Kateqoriya:Riyazi formatlama şablonları"), since those are useful there.
+ * Structural and tracking template categories remain excluded.
+ *
  * @param {string} title
+ * @param {{allowTemplateCategories?: boolean}} [options]
  * @return {boolean}
  */
-function isExcludedTitle(title) {
+function isExcludedTitle(title, { allowTemplateCategories = false } = {}) {
+	const isNonTopical = allowTemplateCategories && isNonTopicalTemplateCategory(title);
+	const hasExcludedKeyword = EXCLUDED_TITLE_KEYWORDS.some((kw) => {
+		if (!title.includes(kw)) {
+			return false;
+		}
+		// The generic keyword is too broad in template contexts: topical
+		// categories like "... şablonları" are useful there. Structural and
+		// tracking categories are still caught by isNonTopical above.
+		return !(allowTemplateCategories && kw === TEMPLATE_CATEGORY_KEYWORD);
+	});
 	return (
-		EXCLUDED_TITLE_KEYWORDS.some((kw) => title.includes(kw)) &&
+		(isNonTopical || hasExcludedKeyword) &&
 		!EXCLUDED_KEYWORD_ALLOW_PATTERNS.some((pattern) => pattern.test(title))
 	);
 }
@@ -483,6 +502,7 @@ function fetchMembersSuggestions(
  * @param {Map} [redirectResolvedCatToSites] - Titles reached via foreign-wiki redirect resolution
  * @param {Map} [foreignNamesByTitle] - Foreign title(s) per azwiki title (array of {lang, name})
  * @param {string} [currentCategoryTitle] - Current category title when editing a category page
+ * @param {{allowTemplateCategories?: boolean}} [options] - Page context options
  * @return {Promise<{suggestions: Array, parentMap: Map}>}
  */
 async function buildParentCatsSuggestions(
@@ -493,8 +513,10 @@ async function buildParentCatsSuggestions(
 	templateAddedCats = new Set(),
 	redirectResolvedCatToSites = new Map(),
 	foreignNamesByTitle = new Map(),
-	currentCategoryTitle = ''
+	currentCategoryTitle = '',
+	options = {}
 ) {
+	const allowTemplateCategories = options.allowTemplateCategories === true;
 	const currentCatsSet = new Set(currentCats);
 	const suggestionTitles = rawResults.map((r) => r.title);
 
@@ -577,7 +599,7 @@ async function buildParentCatsSuggestions(
 		if (EXCLUDED_TITLES.has(r.title)) {
 			return;
 		}
-		if (isExcludedTitle(r.title)) {
+		if (isExcludedTitle(r.title, { allowTemplateCategories })) {
 			return;
 		}
 		const resolvedTitle = resolveRedirectTitle(r.title, azwikiRedirectMap);
@@ -655,7 +677,7 @@ async function buildParentCatsSuggestions(
 				!templateAddedCats.has(p) &&
 				!isSameCategoryIgnoringPlural(p, pageCategoryName) &&
 				!isRemovalExcluded(p) &&
-				!isExcludedTitle(p)
+				!isExcludedTitle(p, { allowTemplateCategories })
 			) {
 				s.removals.push({ title: p, selected: false });
 			}
@@ -681,6 +703,7 @@ async function buildParentCatsSuggestions(
  * @param {Set<string>} templateAddedCats - Categories added via templates (excluded)
  * @param {Map<string, string[]>} [sharedParentMap] - Pre-fetched parent map to reuse
  * @param {string} currentPageTitle - Current page title (no prefix)
+ * @param {{allowTemplateCategories?: boolean}} [options] - Page context options
  * @return {Promise<Array<{title: string, selected: boolean, reasons: string[]}>>}
  */
 async function buildExistingRemovals(
@@ -688,15 +711,19 @@ async function buildExistingRemovals(
 	api,
 	templateAddedCats = new Set(),
 	sharedParentMap = null,
-	currentPageTitle = ''
+	currentPageTitle = '',
+	options = {}
 ) {
+	const allowTemplateCategories = options.allowTemplateCategories === true;
 	const parentMap = sharedParentMap || new Map();
 
 	// Draft, maintenance and other excluded categories (e.g. "Kateqoriya:Psixologiya
 	// qaralamaları") must never be removed themselves nor justify removing another
 	// category, so they are excluded from the redundancy analysis entirely.
 	const uniqueCats = [...new Set(currentCats)];
-	const analysisCats = uniqueCats.filter((title) => !isExcludedTitle(title));
+	const analysisCats = uniqueCats.filter(
+		(title) => !isExcludedTitle(title, { allowTemplateCategories })
+	);
 	const currentCatsSet = new Set(analysisCats);
 	const toFetch = uniqueCats.filter((t) => !parentMap.has(t));
 	const queryResults = await fetchCategoriesForTitles(api, toFetch);
@@ -910,6 +937,7 @@ async function buildExistingRemovals(
  * @param {Map} [redirectResolvedCatToSites] - Titles reached via foreign-wiki redirect resolution
  * @param {Map} [foreignNamesByTitle] - Foreign title(s) per azwiki title (array of {lang, name})
  * @param {string} [currentCategoryTitle] - Current category title when editing a category page
+ * @param {{isTemplateCategoryPage?: boolean}} [options] - Page context options
  * @return {Promise<Array<{title: string, selected: boolean, sources: string[], redirectSites: string[], foreignNames: Array, isCategory: boolean}>>}
  */
 async function buildMembersSuggestions(
@@ -919,8 +947,10 @@ async function buildMembersSuggestions(
 	currentPageCats = new Set(),
 	redirectResolvedCatToSites = new Map(),
 	foreignNamesByTitle = new Map(),
-	currentCategoryTitle = ''
+	currentCategoryTitle = '',
+	options = {}
 ) {
+	const isTemplateCategoryPage = options.isTemplateCategoryPage === true;
 	const { members: currentMembersSet, subcats: currentSubcatsSet } = localData;
 	const suggestionTitles = rawResults.map((r) => r.title);
 	const allPagesCats = new Map();
@@ -946,6 +976,45 @@ async function buildMembersSuggestions(
 		});
 	});
 
+	// Template members are written to /doc when it exists, so the editability of
+	// that page decides whether the suggestion can actually be applied.
+	const docStatesByTemplate = new Map();
+	if (isTemplateCategoryPage) {
+		const templateTitles = rawResults
+			.filter((r) => new mw.Title(r.title).getNamespaceId() === TEMPLATE_NAMESPACE)
+			.map((r) => r.title);
+		if (templateTitles.length > 0) {
+			const docResults = await fetchCategoriesForTitles(
+				api,
+				templateTitles.map((title) => title + '/doc'),
+				true
+			);
+			docResults.forEach((res) => {
+				const redirects = new Map((res.redirects || []).map((r) => [r.from, r.to]));
+				Object.values(res.pages || {}).forEach((p) => {
+					const templateTitle = templateTitles.find((title) => {
+						let docTitle = title + '/doc';
+						const visited = new Set();
+						while (redirects.has(docTitle) && !visited.has(docTitle)) {
+							visited.add(docTitle);
+							docTitle = redirects.get(docTitle);
+						}
+						return docTitle === p.title;
+					});
+					if (!templateTitle) {
+						return;
+					}
+					docStatesByTemplate.set(templateTitle, {
+						exists: p.missing === undefined,
+						editable: Array.isArray(p.actions && p.actions.edit)
+							? p.actions.edit.length === 0
+							: false,
+					});
+				});
+			});
+		}
+	}
+
 	const seenTitles = new Set();
 	const suggestions = [];
 	rawResults.forEach((item) => {
@@ -953,7 +1022,10 @@ async function buildMembersSuggestions(
 			return;
 		}
 		const ns = new mw.Title(item.title).getNamespaceId();
-		if (!ALLOWED_NAMESPACES.includes(ns)) {
+		if (
+			!MEMBER_SUGGESTION_NAMESPACES.includes(ns) &&
+			!(isTemplateCategoryPage && ns === TEMPLATE_NAMESPACE)
+		) {
 			return;
 		}
 		if (isExcludedTitle(item.title)) {
@@ -971,7 +1043,14 @@ async function buildMembersSuggestions(
 			log('Filtered out parent of current page:', item.title);
 			return;
 		}
-		if (editableByTitle.get(resolvedTitle) === false) {
+		let canEdit = editableByTitle.get(resolvedTitle);
+		if (ns === TEMPLATE_NAMESPACE && isTemplateCategoryPage) {
+			const docState = docStatesByTemplate.get(item.title);
+			if (docState && docState.exists) {
+				canEdit = docState.editable;
+			}
+		}
+		if (canEdit === false) {
 			log('Filtered out uneditable page:', resolvedTitle);
 			return;
 		}

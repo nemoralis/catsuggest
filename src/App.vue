@@ -41,16 +41,16 @@
 					<cdx-tabs v-model:active="mode">
 						<cdx-tab
 							name="members"
-							label="Məqalə və altkateqoriya"
+							:label="membersTabLabel"
 							:disabled="isExcludedCategory || !isAuthorized"
 						/>
 						<cdx-tab name="parentCats" label="Kateqoriya" />
 					</cdx-tabs>
 					<cdx-message v-if="isExcludedCategory" type="warning" style="margin-top: 8px">
-						Bu kateqoriya üçün məqalə və altkateqoriya təklifləri deaktiv edilib.
+						Bu kateqoriya üçün {{ membersDisabledLabel }} təklifləri deaktiv edilib.
 					</cdx-message>
 					<cdx-message v-else-if="!isAuthorized" type="warning" style="margin-top: 8px">
-						Məqalə və altkateqoriya bölməsindən istifadə yalnız müraciət əsasında
+						{{ membersTabLabel }} bölməsindən istifadə yalnız müraciət əsasında
 						fəaliyyət göstərir. Zəhmət olmasa,
 						<a
 							:href="
@@ -78,11 +78,12 @@
 
 				<template v-else>
 					<p v-if="mode === 'parentCats'">
-						Digər dillərdəki məqalələrə əlavə edilmiş kateqoriyalar əsasında təkliflər.
+						Digər dillərdəki {{ parentCatsIntroNoun }} əlavə edilmiş kateqoriyalar
+						əsasında təkliflər.
 					</p>
 					<p v-else>
 						Digər dillərdəki eyni kateqoriyanın üzvləri əsasında bu kateqoriyaya əlavə
-						edilə biləcək məqalələr və altkateqoriyalar.
+						edilə biləcək {{ membersIntroNoun }}.
 					</p>
 
 					<cdx-accordion
@@ -241,7 +242,9 @@
 								<div v-if="suggestedPages.length > 0">
 									<cdx-accordion :open="true" separation="minimal">
 										<template #title
-											>Məqalələr ({{ suggestedPages.length }})</template
+											>{{ membersAccordionLabel }} ({{
+												suggestedPages.length
+											}})</template
 										>
 										<div
 											v-for="item in suggestedPages"
@@ -553,7 +556,7 @@
 						weight="primary"
 						:disabled="(selectedCount === 0 && !hasRemovals) || !hasScrolledResults"
 						@click="handleApplyClick"
-						>{{ selectedCount > 0 ? 'Təsdiq et' : 'Sil' }}</cdx-button
+						>{{ selectedCount > 0 || isTemplatePage ? 'Təsdiq et' : 'Sil' }}</cdx-button
 					>
 				</div>
 			</div>
@@ -598,7 +601,8 @@
 	>
 		<template #default>
 			<p>
-				Siz <strong>{{ selectedCount }} məqaləyə</strong> kateqoriya əlavə etmək üzrəsiniz.
+				Siz <strong>{{ selectedCount }} {{ confirmTargetNoun }}</strong> kateqoriya əlavə
+				etmək üzrəsiniz.
 			</p>
 			<p style="margin-top: 8px">Bütün təklifləri yoxlamısınız?</p>
 		</template>
@@ -623,6 +627,7 @@
 const {
 	CATEGORY_NAMESPACE,
 	CATEGORY_PREFIX,
+	TEMPLATE_NAMESPACE,
 	CURRENT_WIKI,
 	FETCH_CONCURRENCY,
 	SLEEP_BETWEEN_BATCHES_MS,
@@ -638,6 +643,7 @@ const {
 	MAX_DEPTH2_SUBCATS,
 	DEPTH2_BATCH_SIZE,
 	ENABLE_EDIT_GROUP_LINKS,
+	isTopicalTemplateCategory,
 	log,
 	debounce,
 	escapeRegex,
@@ -668,10 +674,18 @@ const {
 } = require('./suggestions.js');
 const {
 	addParentCategoriesEdit,
+	addTemplateCategoriesEdit,
+	refreshTemplateLinks,
+	isTemplateMember,
+	needsTemplateLinkRefresh,
 	addCategoryToMembersEdit,
 	findTitlesAlreadyInCategory,
 	getEditResultMessage,
 	sanitizeSortKey,
+	resolveTemplateDoc,
+	fetchPageContentMeta,
+	extractIncludeonlyCategories,
+	extractTemplatePageCategories,
 } = require('./edit.js');
 const {
 	createWorkflowState,
@@ -709,12 +723,20 @@ export default {
 	data() {
 		const isCatPage = mw.config.get('wgNamespaceNumber') === CATEGORY_NAMESPACE;
 		const isPageExcluded = isCatPage && isCatPageExcluded(mw.config.get('wgPageName'));
+		const isTemplatePage =
+			mw.config.get('wgNamespaceNumber') === TEMPLATE_NAMESPACE &&
+			!mw.config.get('wgTitle').includes('/');
+		const isTemplateCategoryPage =
+			isCatPage && isTopicalTemplateCategory(mw.config.get('wgPageName').replace(/_/g, ' '));
 
 		return {
 			dialogShown: false,
 			suggestions: [],
 			qid: mw.config.get('wgWikibaseItemId'),
-			pageEditable: mw.config.get('wgIsProbablyEditable') !== false,
+			isTemplatePage,
+			isTemplateCategoryPage,
+			templateTargetResolved: !isTemplatePage,
+			templateTargetEditable: false,
 			selectedSuggestions: [],
 			workflow: createWorkflowState(),
 			workflowRequestSeq: 0,
@@ -761,9 +783,39 @@ export default {
 	},
 	computed: {
 		dialogTitle() {
-			return this.mode === 'members'
-				? 'Məqalə və altkateqoriya təklifləri'
-				: 'Kateqoriya təklifləri';
+			if (this.mode !== 'members') {
+				return 'Kateqoriya təklifləri';
+			}
+			return this.isTemplateCategoryPage
+				? 'Şablon təklifləri'
+				: 'Məqalə və altkateqoriya təklifləri';
+		},
+		membersTabLabel() {
+			return this.isTemplateCategoryPage
+				? 'Şablon və altkateqoriya'
+				: 'Məqalə və altkateqoriya';
+		},
+		membersAccordionLabel() {
+			return this.isTemplateCategoryPage ? 'Şablonlar' : 'Məqalələr';
+		},
+		membersDisabledLabel() {
+			return this.isTemplateCategoryPage
+				? 'şablon və altkateqoriya'
+				: 'məqalə və altkateqoriya';
+		},
+		membersEditErrorLabel() {
+			return this.isTemplateCategoryPage ? 'Şablonları' : 'Məqalələri';
+		},
+		parentCatsIntroNoun() {
+			return this.isTemplateCategoryPage ? 'səhifələrə' : 'məqalələrə';
+		},
+		membersIntroNoun() {
+			return this.isTemplateCategoryPage
+				? 'şablonlar və altkateqoriyalar'
+				: 'məqalələr və altkateqoriyalar';
+		},
+		confirmTargetNoun() {
+			return this.isTemplateCategoryPage ? 'şablona' : 'məqaləyə';
 		},
 		status() {
 			return getWorkflowStatus(this.workflow);
@@ -781,6 +833,12 @@ export default {
 		},
 		canFetch() {
 			return this.selectedSites.length > 0 && !this.loading;
+		},
+		pageEditable() {
+			if (!this.isTemplatePage) {
+				return mw.config.get('wgIsProbablyEditable') !== false;
+			}
+			return this.templateTargetResolved && this.templateTargetEditable;
 		},
 		allSelected: {
 			get() {
@@ -951,6 +1009,19 @@ export default {
 
 		isCurrentRequest(request) {
 			return isRequestCurrent(this.workflow, request);
+		},
+
+		async resolveTemplateTarget() {
+			const fallback = mw.config.get('wgIsProbablyEditable') !== false;
+			try {
+				const doc = await resolveTemplateDoc(this.api, mw.config.get('wgPageName'));
+				this.templateTargetEditable = doc.exists ? doc.editable : fallback;
+			} catch (err) {
+				mw.log.warn('[CatSuggest] Could not resolve template edit target:', err);
+				this.templateTargetEditable = fallback;
+			} finally {
+				this.templateTargetResolved = true;
+			}
 		},
 
 		toggleDialog() {
@@ -1271,19 +1342,46 @@ export default {
 
 		async fetchParentCatsState() {
 			const currentCats = mw.config.get('wgCategories');
+			let baseCats;
 			if (currentCats) {
-				return currentCats.map((c) => CATEGORY_PREFIX + c.replace(/_/g, ' '));
+				baseCats = currentCats.map((c) => CATEGORY_PREFIX + c.replace(/_/g, ' '));
+			} else {
+				const pageName = mw.config.get('wgPageName');
+				const result = await fetchFullQuery(this.api, {
+					action: 'query',
+					titles: pageName,
+					prop: 'categories',
+					cllimit: 'max',
+				});
+				const pageData = result.pages && Object.values(result.pages)[0];
+				baseCats =
+					pageData && pageData.categories ? pageData.categories.map((c) => c.title) : [];
 			}
 
-			const pageName = mw.config.get('wgPageName');
-			const result = await fetchFullQuery(this.api, {
-				action: 'query',
-				titles: pageName,
-				prop: 'categories',
-				cllimit: 'max',
-			});
-			const pageData = result.pages && Object.values(result.pages)[0];
-			return pageData && pageData.categories ? pageData.categories.map((c) => c.title) : [];
+			if (!this.isTemplatePage) {
+				return baseCats;
+			}
+
+			// Template categories can come from the template's own <noinclude>
+			// and from /doc's <includeonly>. The API list may not include the
+			// latter when /doc is not transcluded, so read both explicitly.
+			const cats = new Set(baseCats);
+			try {
+				const pageName = mw.config.get('wgPageName');
+				const [templatePage, docPage] = await Promise.all([
+					fetchPageContentMeta(this.api, pageName),
+					fetchPageContentMeta(this.api, pageName + '/doc'),
+				]);
+				if (templatePage) {
+					extractTemplatePageCategories(templatePage.content).forEach((c) => cats.add(c));
+				}
+				if (docPage) {
+					extractIncludeonlyCategories(docPage.content).forEach((c) => cats.add(c));
+				}
+			} catch (err) {
+				mw.log.warn('[CatSuggest] Could not read template category state:', err);
+			}
+			return Array.from(cats);
 		},
 
 		onAccordionFetch() {
@@ -1445,11 +1543,13 @@ export default {
 				let suggestions;
 				let existingRemovals = [];
 				if (mode === 'parentCats') {
-					const templateAddedCats = await detectTemplateAddedCategories(
-						this.api,
-						mw.config.get('wgPageName').replace(/_/g, ' '),
-						localData
-					);
+					const templateAddedCats = this.isTemplatePage
+						? new Set()
+						: await detectTemplateAddedCategories(
+								this.api,
+								mw.config.get('wgPageName').replace(/_/g, ' '),
+								localData
+							);
 					if (!this.isCurrentRequest(request)) {
 						return;
 					}
@@ -1462,26 +1562,43 @@ export default {
 						templateAddedCats,
 						redirectResolvedCatToSites,
 						foreignNamesByTitle,
-						currentCategoryTitle
+						currentCategoryTitle,
+						{
+							allowTemplateCategories:
+								this.isTemplatePage || this.isTemplateCategoryPage,
+						}
 					);
 					if (!this.isCurrentRequest(request)) {
 						return;
 					}
 					suggestions = built.suggestions;
 
-					existingRemovals = await buildExistingRemovals(
-						localData,
-						this.api,
-						templateAddedCats,
-						built.parentMap,
-						currentPageTitle
-					);
-					if (!this.isCurrentRequest(request)) {
-						return;
+					if (this.isTemplatePage) {
+						// Templates only support category additions; removals
+						// would have to edit a second page in the general case.
+						suggestions.forEach((s) => {
+							s.removals = [];
+						});
+						existingRemovals = [];
+					} else {
+						existingRemovals = await buildExistingRemovals(
+							localData,
+							this.api,
+							templateAddedCats,
+							built.parentMap,
+							currentPageTitle,
+							{
+								allowTemplateCategories:
+									this.isTemplatePage || this.isTemplateCategoryPage,
+							}
+						);
+						if (!this.isCurrentRequest(request)) {
+							return;
+						}
+						existingRemovals.forEach(
+							(rem) => (rem.flatTree = this.flattenTree(rem.tree, 0))
+						);
 					}
-					existingRemovals.forEach(
-						(rem) => (rem.flatTree = this.flattenTree(rem.tree, 0))
-					);
 				} else {
 					const currentPageCats = await this.fetchParentCatsState();
 					if (!this.isCurrentRequest(request)) {
@@ -1494,7 +1611,8 @@ export default {
 						new Set(currentPageCats),
 						redirectResolvedCatToSites,
 						foreignNamesByTitle,
-						currentCategoryTitle
+						currentCategoryTitle,
+						{ isTemplateCategoryPage: this.isTemplateCategoryPage }
 					);
 					if (!this.isCurrentRequest(request)) {
 						return;
@@ -1594,7 +1712,7 @@ export default {
 					removalSet.add(r.title);
 				}
 			});
-			const titlesToRemove = Array.from(removalSet);
+			const titlesToRemove = this.isTemplatePage ? [] : Array.from(removalSet);
 			if (titlesToAdd.length === 0 && titlesToRemove.length === 0) {
 				return;
 			}
@@ -1617,19 +1735,42 @@ export default {
 			this.currentProcessingTitle = pageTitle;
 
 			try {
-				await addParentCategoriesEdit(
-					this.api,
-					pageTitle,
-					titlesToAdd,
-					titlesToRemove,
-					escapeRegex
-				);
+				let addedCount;
+				if (this.isTemplatePage) {
+					const result = await addTemplateCategoriesEdit(
+						this.api,
+						pageTitle,
+						titlesToAdd,
+						await this.fetchParentCatsState()
+					);
+					addedCount = result.addedCount;
+					// Categories added via /doc do not refresh the transcluding
+					// template's link tables, so re-save it unchanged.
+					if (needsTemplateLinkRefresh(pageTitle, result)) {
+						try {
+							await refreshTemplateLinks(this.api, pageTitle);
+						} catch (refreshErr) {
+							// The category edit succeeded; a stale category
+							// listing must not be reported as a failed edit.
+							mw.log.warn('CatSuggest link refresh error:', refreshErr);
+						}
+					}
+				} else {
+					await addParentCategoriesEdit(
+						this.api,
+						pageTitle,
+						titlesToAdd,
+						titlesToRemove,
+						escapeRegex
+					);
+					addedCount = titlesToAdd.length;
+				}
 
 				// The edit request cannot be cancelled once sent; it always runs to
 				// completion, so a stop request made meanwhile is moot.
 				this.editAborted = false;
 				this.processedCount = 1;
-				this.lastEditAddedCount = titlesToAdd.length;
+				this.lastEditAddedCount = addedCount;
 				this.lastEditRemovedCount = titlesToRemove.length;
 				this.dispatchWorkflow({ type: 'APPLY_COMPLETE' });
 			} catch (_err) {
@@ -1722,13 +1863,32 @@ export default {
 					}
 					this.currentProcessingTitle = item.title;
 					try {
-						await addCategoryToMembersEdit(
-							this.api,
-							item.title,
-							categoryTag,
-							editGroupSuffix,
-							pageName
-						);
+						const namespaceId = new mw.Title(item.title).getNamespaceId();
+						if (isTemplateMember(namespaceId)) {
+							const result = await addTemplateCategoriesEdit(this.api, item.title, [
+								{ title: normalizedPageName },
+							]);
+							// A /doc edit does not refresh the template's category
+							// index; the null edit is best-effort.
+							if (needsTemplateLinkRefresh(item.title, result)) {
+								try {
+									await refreshTemplateLinks(this.api, item.title);
+								} catch (refreshErr) {
+									mw.log.warn(
+										'CatSuggest template link refresh error:',
+										refreshErr
+									);
+								}
+							}
+						} else {
+							await addCategoryToMembersEdit(
+								this.api,
+								item.title,
+								categoryTag,
+								editGroupSuffix,
+								pageName
+							);
+						}
 						this.processedCount++;
 						if (this.editAborted) {
 							break;
@@ -1764,7 +1924,10 @@ export default {
 				mw.log.warn('Batch edit error:', _err);
 				this.dispatchWorkflow({
 					type: 'APPLY_FAIL',
-					error: 'Məqalələri redaktə edərkən xəta baş verdi: ' + getErrorMessage(_err),
+					error:
+						this.membersEditErrorLabel +
+						' redaktə edərkən xəta baş verdi: ' +
+						getErrorMessage(_err),
 				});
 			}
 		},
@@ -2032,6 +2195,9 @@ export default {
 			btnContainer.id = 'catsuggest-btn-container';
 			catLinks.parentNode.insertBefore(btnContainer, catLinks.nextSibling);
 			this.showButtonTarget = true;
+		}
+		if (this.isTemplatePage) {
+			this.resolveTemplateTarget();
 		}
 		window.addEventListener('beforeunload', this.handleBeforeUnload);
 	},

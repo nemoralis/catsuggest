@@ -1,5 +1,5 @@
 /* global __CATSUGGEST_DEV__ */
-const { ALLOWED_NAMESPACES, log } = require('./constants.js');
+const { ALLOWED_NAMESPACES, TEMPLATE_NAMESPACE, log } = require('./constants.js');
 const { createLocalApi, createWikidataApi } = require('./api.js');
 
 const enabledUsers = __CATSUGGEST_DEV__ ? [] : require('./catsuggest-check.json').enabledusers;
@@ -19,6 +19,15 @@ mw.loader
 		const { createMwApp } = Vue;
 
 		if (!ALLOWED_NAMESPACES.includes(mw.config.get('wgNamespaceNumber'))) {
+			return;
+		}
+		// Templates are supported only on base wikitext pages. Subpages such as
+		// /doc and /sandbox are not edit targets for this gadget.
+		if (
+			mw.config.get('wgNamespaceNumber') === TEMPLATE_NAMESPACE &&
+			(mw.config.get('wgTitle').includes('/') ||
+				mw.config.get('wgPageContentModel') !== 'wikitext')
+		) {
 			return;
 		}
 		if (mw.config.get('wgAction') !== 'view') {

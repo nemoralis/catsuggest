@@ -14,7 +14,7 @@ global.mw = {
 	},
 };
 
-const { clearMembersCache } = await import('../src/cache.js');
+const { clearMembersCache, isCatPageExcluded } = await import('../src/cache.js');
 const { CACHE_KEY_TREE_PREFIX } = await import('../src/constants.js');
 
 describe('clearMembersCache', () => {
@@ -32,5 +32,25 @@ describe('clearMembersCache', () => {
 		clearMembersCache(0);
 
 		expect(remove).not.toHaveBeenCalled();
+	});
+});
+
+describe('isCatPageExcluded', () => {
+	it('allows members mode on topical template categories', () => {
+		expect(isCatPageExcluded('Kateqoriya:Riyazi_formatlama_şablonları')).toBe(false);
+		expect(isCatPageExcluded('Kateqoriya:Kimya şablonları')).toBe(false);
+	});
+
+	it('keeps tracking and project template categories excluded', () => {
+		expect(isCatPageExcluded('Kateqoriya:Şablonlar:TemplateStyles istifadə edən şablonlar')).toBe(
+			true
+		);
+		expect(isCatPageExcluded('Kateqoriya:Vikipediya şablonları')).toBe(true);
+		// Only the capital-Ş form appears here, so keyword matching alone misses it.
+		expect(isCatPageExcluded('Kateqoriya:Şablonlar:TemplateStyles istifadə edən')).toBe(true);
+	});
+
+	it('still excludes categories matching other keywords', () => {
+		expect(isCatPageExcluded('Kateqoriya:Yaşayan insanlar')).toBe(true);
 	});
 });
