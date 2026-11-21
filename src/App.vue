@@ -1776,7 +1776,7 @@ export default {
 		onSortKeyTitleClick(event) {
 			if (event.target.classList.contains('cdx-popover__header__title')) {
 				window.open(
-					this.getPageUrl('Special:MyLanguage/Help:Categories'),
+					this.getPageUrl('mw:Special:MyLanguage/Help:Categories'),
 					'_blank',
 					'noopener'
 				);
