@@ -216,13 +216,13 @@ If no edit summary is provided, the latest commit message is used.
 
 ### Gadget definition
 
-The sort-key button uses `cdxIconKey`. In production the Gadgets extension builds the
-virtual `icons.json` from the `codexIcons=` option of the gadget definition, so
-`cdxIconKey` must be added to that list when adopting this version (development builds
-bundle the full icon set and are unaffected):
+The sort-key button uses `cdxIconKey` and its text input uses `cdxIconSortVertical`. In
+production the Gadgets extension builds the virtual `icons.json` from the `codexIcons=`
+option of the gadget definition, so both icons must be added to that list when adopting
+this version (development builds bundle the full icon set and are unaffected):
 
 ```
-* catsuggest [package |dependencies=@wikimedia/codex |rights=autoconfirmed |actions=view |namespaces=0,4,12,14,100|codexIcons=cdxIconLanguage, cdxIconSearch, cdxIconKey, cdxIconReload] |catsuggest.js |catsuggest.css|catsuggest-check.json|catsuggest-config.json
+* catsuggest [package |dependencies=@wikimedia/codex |rights=autoconfirmed |actions=view |namespaces=0,4,12,14,100|codexIcons=cdxIconLanguage, cdxIconSearch, cdxIconKey, cdxIconReload, cdxIconSortVertical] |catsuggest.js |catsuggest.css|catsuggest-check.json|catsuggest-config.json
 ```
 
 ## Source

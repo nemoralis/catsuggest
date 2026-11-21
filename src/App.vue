@@ -446,22 +446,17 @@
 							placement="top"
 							title="Sıralama açarı"
 							:use-close-button="true"
+							@click="onSortKeyTitleClick"
 							class="catsuggest-sortkey-popover"
 						>
 							<p>Sıralama açarı kateqoriya daxilində səhifənin yerini təyin edir.</p>
 							<cdx-text-input
 								v-if="activeSortKeySuggestion"
 								v-model="activeSortKeySuggestion.sortKey"
+								:start-icon="icons.sortVertical"
 								placeholder="Sıralama açarı"
+								:clearable="true"
 							/>
-							<p>
-								<a
-									:href="getPageUrl('Special:MyLanguage/Help:Categories')"
-									target="_blank"
-									class="catsuggest-suggestion__link"
-									>Ətraflı məlumat</a
-								>
-							</p>
 						</cdx-popover>
 						<div ref="resultsSentinel" style="height: 1px"></div>
 					</div>
@@ -664,7 +659,13 @@ const {
 	getBatchOutcome,
 } = require('./workflow.js');
 const { createAsyncCache } = require('./async-cache.js');
-const { cdxIconLanguage, cdxIconSearch, cdxIconKey, cdxIconReload } = require('./icons.json');
+const {
+	cdxIconLanguage,
+	cdxIconSearch,
+	cdxIconKey,
+	cdxIconReload,
+	cdxIconSortVertical,
+} = require('./icons.json');
 
 const currentPageId = mw.config.get('wgArticleId');
 
@@ -699,6 +700,7 @@ export default {
 				search: cdxIconSearch,
 				key: cdxIconKey,
 				reload: cdxIconReload,
+				sortVertical: cdxIconSortVertical,
 			},
 			sortKeyPopoverOpen: false,
 			sortKeyPopoverAnchor: null,
@@ -1755,6 +1757,16 @@ export default {
 
 		displayCategoryTitle(title) {
 			return String(title).replace(/^(?:Kateqoriya|Category):/i, '');
+		},
+
+		onSortKeyTitleClick(event) {
+			if (event.target.classList.contains('cdx-popover__header__title')) {
+				window.open(
+					this.getPageUrl('Special:MyLanguage/Help:Categories'),
+					'_blank',
+					'noopener'
+				);
+			}
 		},
 
 		openSortKeyPopover(cat, event) {

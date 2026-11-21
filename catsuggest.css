@@ -83,6 +83,11 @@
 .catsuggest-sortkey-popover p {
 	margin: 0 0 8px;
 }
+.catsuggest-sortkey-popover .cdx-popover__header__title {
+	color: var(--color-progressive, #36c);
+	cursor: pointer;
+	text-decoration: underline;
+}
 .catsuggest-sortkey-popover .cdx-text-input {
 	width: 100%;
 }
