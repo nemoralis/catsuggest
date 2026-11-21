@@ -83,6 +83,9 @@ Always run `npm test` after a behavior change; add or update tests in `tests/`.
   `cdxIconReload`, `cdxIconSortVertical` in addition to the existing set.
 - Releases use SemVer annotated tags (`v2.0.0`, `v2.1.0`, …) and `CHANGELOG.md`; bump
   `package.json`/`package-lock.json` together with the tag.
+- Pushing a `v*` tag runs `.gitlab-ci.yml`'s `release` job, which creates/updates the
+  GitLab Release from that version's `CHANGELOG.md` section. Keep the changelog heading
+  format `## [x.y.z] - YYYY-MM-DD` so extraction works.
 
 ## Working style
 

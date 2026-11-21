@@ -230,6 +230,13 @@ The edit summary is prefixed with a link to the deployed git commit, e.g.
 
 If no edit summary is provided, the latest commit message is used.
 
+## Releases
+
+Releases follow SemVer with annotated `v*` tags. `CHANGELOG.md` is the source of truth:
+pushing a `v*` tag runs the CI `release` job, which extracts that version's section from
+`CHANGELOG.md` and creates or updates the matching GitLab Release. Re-running a tag
+pipeline updates the same release in place.
+
 ### Gadget definition
 
 The sort-key button uses `cdxIconKey` and its text input uses `cdxIconSortVertical`. In
