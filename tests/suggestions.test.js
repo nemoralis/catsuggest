@@ -1412,4 +1412,87 @@ describe('buildMembersSuggestions', () => {
 		]);
 		expect(suggestions[0].selected).toBe(true);
 	});
+
+	it('should keep pages the current user can edit', async () => {
+		const mockGet = vi.fn(async () => ({
+			query: {
+				pages: {
+					1: { title: 'Məqalə A', actions: { edit: [] } },
+				},
+			},
+		}));
+
+		const suggestions = await buildMembersSuggestions(
+			[{ title: 'Məqalə A', sources: ['en'] }],
+			{ members: new Set(), subcats: new Set() },
+			{ get: mockGet }
+		);
+
+		expect(suggestions.map((s) => s.title)).toEqual(['Məqalə A']);
+		expect(suggestions[0].selected).toBe(true);
+	});
+
+	it('should filter out pages the current user cannot edit', async () => {
+		const mockGet = vi.fn(async () => ({
+			query: {
+				pages: {
+					1: {
+						title: 'Qorunmuş səhifə',
+						actions: { edit: [{ code: 'protectedpage' }] },
+					},
+					2: { title: 'Məqalə B', actions: { edit: [] } },
+				},
+			},
+		}));
+
+		const suggestions = await buildMembersSuggestions(
+			[
+				{ title: 'Qorunmuş səhifə', sources: ['en'] },
+				{ title: 'Məqalə B', sources: ['en'] },
+			],
+			{ members: new Set(), subcats: new Set() },
+			{ get: mockGet }
+		);
+
+		expect(suggestions.map((s) => s.title)).toEqual(['Məqalə B']);
+	});
+
+	it('should treat missing editability results as editable', async () => {
+		const mockGet = vi.fn(async () => ({
+			query: {
+				pages: {
+					1: { title: 'Məqalə C' },
+				},
+			},
+		}));
+
+		const suggestions = await buildMembersSuggestions(
+			[{ title: 'Məqalə C', sources: ['en'] }],
+			{ members: new Set(), subcats: new Set() },
+			{ get: mockGet }
+		);
+
+		expect(suggestions.map((s) => s.title)).toEqual(['Məqalə C']);
+	});
+
+	it('should request editability in the members categories query', async () => {
+		const mockGet = vi.fn(async () => ({ query: { pages: {} } }));
+
+		await buildMembersSuggestions(
+			[{ title: 'Məqalə D', sources: ['en'] }],
+			{ members: new Set(), subcats: new Set() },
+			{ get: mockGet }
+		);
+
+		const categoryCall = mockGet.mock.calls.find(
+			([params]) => params.titles && params.titles.includes('Məqalə D')
+		);
+		expect(categoryCall[0]).toEqual(
+			expect.objectContaining({
+				prop: 'categories|info',
+				intestactions: 'edit',
+				intestactionsdetail: 'quick',
+			})
+		);
+	});
 });

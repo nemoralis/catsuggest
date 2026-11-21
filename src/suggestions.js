@@ -172,9 +172,10 @@ function isCurrentCategoryTitle(title, currentCategoryTitle) {
  *
  * @param {Object} api - API object with get(), and optionally post()
  * @param {string[]} titles
+ * @param {boolean} [includeEditability] - Also test whether the current user can edit each page
  * @return {Promise<Object[]>} Query results, one per batch
  */
-async function fetchCategoriesForTitles(api, titles) {
+async function fetchCategoriesForTitles(api, titles, includeEditability = false) {
 	const uniqueTitles = [...new Set(titles)];
 	if (uniqueTitles.length === 0) {
 		return [];
@@ -189,14 +190,17 @@ async function fetchCategoriesForTitles(api, titles) {
 		const batchPromises = [];
 		for (let j = i; j < waveEnd; j += batchSize) {
 			const batch = uniqueTitles.slice(j, Math.min(j + batchSize, waveEnd));
-			batchPromises.push(
-				fetchFullQuery(api, {
-					action: 'query',
-					titles: batch.join('|'),
-					prop: 'categories',
-					cllimit: 'max',
-				})
-			);
+			const params = {
+				action: 'query',
+				titles: batch.join('|'),
+				prop: includeEditability ? 'categories|info' : 'categories',
+				cllimit: 'max',
+			};
+			if (includeEditability) {
+				params.intestactions = 'edit';
+				params.intestactionsdetail = 'quick';
+			}
+			batchPromises.push(fetchFullQuery(api, params));
 		}
 		results.push(...(await Promise.all(batchPromises)));
 	}
@@ -920,8 +924,9 @@ async function buildMembersSuggestions(
 	const { members: currentMembersSet, subcats: currentSubcatsSet } = localData;
 	const suggestionTitles = rawResults.map((r) => r.title);
 	const allPagesCats = new Map();
+	const editableByTitle = new Map();
 
-	const catFetchResults = await fetchCategoriesForTitles(api, suggestionTitles);
+	const catFetchResults = await fetchCategoriesForTitles(api, suggestionTitles, true);
 	const azwikiRedirectMap = new Map();
 	catFetchResults.forEach((res) => {
 		(res.redirects || []).forEach((r) => {
@@ -934,6 +939,9 @@ async function buildMembersSuggestions(
 					p.title,
 					p.categories.map((c) => c.title)
 				);
+			}
+			if (p.actions && Array.isArray(p.actions.edit)) {
+				editableByTitle.set(p.title, p.actions.edit.length === 0);
 			}
 		});
 	});
@@ -961,6 +969,10 @@ async function buildMembersSuggestions(
 		}
 		if (currentPageCats.has(resolvedTitle)) {
 			log('Filtered out parent of current page:', item.title);
+			return;
+		}
+		if (editableByTitle.get(resolvedTitle) === false) {
+			log('Filtered out uneditable page:', resolvedTitle);
 			return;
 		}
 		seenTitles.add(resolvedTitle);
