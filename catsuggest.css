@@ -91,6 +91,9 @@
 .catsuggest-sortkey-popover .cdx-text-input {
 	width: 100%;
 }
+.catsuggest-sortkey-apply-all {
+	margin-top: 8px;
+}
 .catsuggest-suggestion__sources {
 	display: inline-flex;
 	gap: 4px;

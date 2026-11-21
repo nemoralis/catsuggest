@@ -446,17 +446,29 @@
 							placement="top"
 							title="Sıralama açarı"
 							:use-close-button="true"
+							:primary-action="{ label: 'Yadda saxla', actionType: 'progressive' }"
+							:default-action="{ label: 'Ləğv et' }"
+							@primary="saveSortKey"
+							@default="cancelSortKey"
 							@click="onSortKeyTitleClick"
 							class="catsuggest-sortkey-popover"
 						>
 							<p>Sıralama açarı kateqoriya daxilində səhifənin yerini təyin edir.</p>
 							<cdx-text-input
 								v-if="activeSortKeySuggestion"
-								v-model="activeSortKeySuggestion.sortKey"
+								v-model="sortKeyDraft"
 								:start-icon="icons.sortVertical"
 								placeholder="Sıralama açarı"
 								:clearable="true"
+								@keyup.enter="saveSortKey"
 							/>
+							<cdx-checkbox
+								v-if="activeSortKeySuggestion"
+								v-model="applySortKeyToAll"
+								class="catsuggest-sortkey-apply-all"
+							>
+								Bütün təkliflərə tətbiq et
+							</cdx-checkbox>
 						</cdx-popover>
 						<div ref="resultsSentinel" style="height: 1px"></div>
 					</div>
@@ -705,6 +717,8 @@ export default {
 			sortKeyPopoverOpen: false,
 			sortKeyPopoverAnchor: null,
 			activeSortKeySuggestion: null,
+			sortKeyDraft: '',
+			applySortKeyToAll: false,
 			sitelinks: [],
 			modeSelectedSites: {
 				members: [],
@@ -1771,14 +1785,37 @@ export default {
 
 		openSortKeyPopover(cat, event) {
 			this.activeSortKeySuggestion = cat;
+			this.sortKeyDraft = cat.sortKey || '';
+			this.applySortKeyToAll = false;
 			this.sortKeyPopoverAnchor = event.currentTarget;
 			this.sortKeyPopoverOpen = true;
+		},
+
+		saveSortKey() {
+			if (!this.activeSortKeySuggestion) {
+				return;
+			}
+			const sortKey = sanitizeSortKey(this.sortKeyDraft);
+			if (this.applySortKeyToAll) {
+				this.suggestions.forEach((suggestion) => {
+					suggestion.sortKey = sortKey;
+				});
+			} else {
+				this.activeSortKeySuggestion.sortKey = sortKey;
+			}
+			this.closeSortKeyPopover();
+		},
+
+		cancelSortKey() {
+			this.closeSortKeyPopover();
 		},
 
 		closeSortKeyPopover() {
 			this.sortKeyPopoverOpen = false;
 			this.activeSortKeySuggestion = null;
 			this.sortKeyPopoverAnchor = null;
+			this.sortKeyDraft = '';
+			this.applySortKeyToAll = false;
 		},
 
 		sourcesStatus(item) {
