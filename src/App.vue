@@ -345,7 +345,7 @@
 												}"
 												weight="quiet"
 												aria-label="Sıralama açarı təyin et"
-												@click="openSortKeyPopover(cat, $event)"
+												@click="toggleSortKeyPopover(cat, $event)"
 											>
 												<cdx-icon :icon="icons.key" />
 											</cdx-button>
@@ -1783,7 +1783,11 @@ export default {
 			}
 		},
 
-		openSortKeyPopover(cat, event) {
+		toggleSortKeyPopover(cat, event) {
+			if (this.sortKeyPopoverOpen && this.activeSortKeySuggestion === cat) {
+				this.closeSortKeyPopover();
+				return;
+			}
 			this.activeSortKeySuggestion = cat;
 			this.sortKeyDraft = cat.sortKey || '';
 			this.applySortKeyToAll = false;
