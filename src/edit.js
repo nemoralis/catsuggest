@@ -278,13 +278,13 @@ function selectTagBlock(content, blocks) {
 }
 
 /**
- * Start index of a trailing run of draft templates in a tag block's inner text.
- * Comments are masked so a draft mentioned in markup is not treated as one.
+ * Start index of a trailing run of stub templates in a tag block's inner text.
+ * Comments are masked so a stub mentioned in markup is not treated as one.
  *
  * @param {string} inner - Tag block content
  * @return {number} Index at which new content should be inserted
  */
-function findTrailingDraftStart(inner) {
+function findTrailingStubStart(inner) {
 	const pattern = /\{\{[^{}|]*-qaralama\b[^{}|]*(?:\|[^{}]*)?\}\}/gi;
 	const source = maskComments(inner);
 	const matches = [];
@@ -332,7 +332,7 @@ function insertCategoriesIntoTagBlock(content, tagName, items) {
 		);
 	}
 	const inner = content.slice(block.innerStart, block.innerEnd);
-	const insertionPoint = findTrailingDraftStart(inner);
+	const insertionPoint = findTrailingStubStart(inner);
 	const before = inner.slice(0, insertionPoint);
 	const separator = before.length === 0 || !/\n[ \t]*$/.test(before) ? '\n' : '';
 	const insertion = separator + links.join('\n') + '\n';
