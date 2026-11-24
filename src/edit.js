@@ -278,6 +278,35 @@ function selectTagBlock(content, blocks) {
 }
 
 /**
+ * Start index of a trailing run of stub templates in a tag block's inner text.
+ * Comments are masked so a stub mentioned in markup is not treated as one.
+ *
+ * @param {string} inner - Tag block content
+ * @return {number} Index at which new content should be inserted
+ */
+function findTrailingStubStart(inner) {
+	const pattern = /\{\{[^{}]*\bstub\b[^{}]*\}\}/gi;
+	const source = maskComments(inner);
+	const matches = [];
+	let match;
+	while ((match = pattern.exec(source)) !== null) {
+		matches.push(match);
+	}
+
+	let point = inner.length;
+	let after = inner.length;
+	for (let i = matches.length - 1; i >= 0; i--) {
+		const candidate = matches[i];
+		if (!/^\s*$/.test(source.slice(candidate.index + candidate[0].length, after))) {
+			break;
+		}
+		point = candidate.index;
+		after = candidate.index;
+	}
+	return point;
+}
+
+/**
  * Insert category links into a tag block, or append a new block at the end.
  *
  * @param {string} content - Original wikitext
@@ -303,9 +332,15 @@ function insertCategoriesIntoTagBlock(content, tagName, items) {
 		);
 	}
 	const inner = content.slice(block.innerStart, block.innerEnd);
-	const separator = inner.length === 0 || !/\n[ \t]*$/.test(inner) ? '\n' : '';
+	const insertionPoint = findTrailingStubStart(inner);
+	const before = inner.slice(0, insertionPoint);
+	const separator = before.length === 0 || !/\n[ \t]*$/.test(before) ? '\n' : '';
 	const insertion = separator + links.join('\n') + '\n';
-	return content.slice(0, block.innerEnd) + insertion + content.slice(block.innerEnd);
+	return (
+		content.slice(0, block.innerStart + insertionPoint) +
+		insertion +
+		content.slice(block.innerStart + insertionPoint)
+	);
 }
 
 /**

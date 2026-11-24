@@ -308,6 +308,22 @@ describe('template category helpers', () => {
 				'<noinclude>\n[[Kateqoriya:New]]\n</noinclude>\n'
 		);
 	});
+
+	it('inserts new categories before a trailing stub template', () => {
+		const content = '<includeonly>text\n{{Foo-stub}}\n</includeonly>';
+		expect(
+			insertCategoriesIntoTagBlock(content, 'includeonly', [{ title: 'Kateqoriya:New' }])
+		).toBe('<includeonly>text\n[[Kateqoriya:New]]\n{{Foo-stub}}\n</includeonly>');
+	});
+
+	it('ignores stub templates inside comments when choosing the insertion point', () => {
+		const content = '<includeonly>text\n<!-- {{Foo-stub}} -->\n</includeonly>';
+		expect(
+			insertCategoriesIntoTagBlock(content, 'includeonly', [{ title: 'Kateqoriya:New' }])
+		).toBe(
+			'<includeonly>text\n<!-- {{Foo-stub}} -->\n[[Kateqoriya:New]]\n</includeonly>'
+		);
+	});
 });
 
 describe('resolveTemplateDoc', () => {
