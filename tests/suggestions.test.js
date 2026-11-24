@@ -1791,6 +1791,32 @@ describe('buildMembersSuggestions', () => {
 
 		expect(suggestions.map((s) => s.title)).toEqual(['Məqalə A']);
 	});
+
+	it('should treat a missing /doc editability result as editable', async () => {
+		const mockGet = vi.fn(async (params) => {
+			if (String(params.titles).includes('/doc')) {
+				return { query: { pages: { 1: { title: 'Şablon:Foo/doc' } } } };
+			}
+			return {
+				query: {
+					pages: { 1: { title: 'Şablon:Foo', actions: { edit: ['protected'] } } },
+				},
+			};
+		});
+
+		const suggestions = await buildMembersSuggestions(
+			[{ title: 'Şablon:Foo', sources: ['en'] }],
+			{ members: new Set(), subcats: new Set() },
+			{ get: mockGet },
+			new Set(),
+			new Map(),
+			new Map(),
+			'',
+			{ isTemplateCategoryPage: true }
+		);
+
+		expect(suggestions.map((s) => s.title)).toEqual(['Şablon:Foo']);
+	});
 });
 
 describe('detectTemplateAddedCategories', () => {

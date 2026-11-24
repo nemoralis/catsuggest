@@ -1007,9 +1007,9 @@ async function buildMembersSuggestions(
 					}
 					docStatesByTemplate.set(templateTitle, {
 						exists: p.missing === undefined,
-						editable: Array.isArray(p.actions && p.actions.edit)
-							? p.actions.edit.length === 0
-							: false,
+						editable:
+							!Array.isArray(p.actions && p.actions.edit) ||
+							p.actions.edit.length === 0,
 					});
 				});
 			});
