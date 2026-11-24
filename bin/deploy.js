@@ -29,15 +29,21 @@ const shortSha = fullSha.slice(0, 7);
 const summary = process.argv[2] || execSync('git log -1 --pretty=%B').toString().trim();
 const commitLink = `[[gitlab:nmw03/catsuggest/-/commit/${fullSha}|${shortSha}]]`;
 
-bot.login().then(() => {
-	const outjs = fs.readFileSync(__dirname + '/' + JS_SOURCE).toString();
-	const outcss = fs.readFileSync(__dirname + '/' + CSS_SOURCE).toString();
+async function deploy() {
+	try {
+		await bot.login();
+		const outjs = fs.readFileSync(__dirname + '/' + JS_SOURCE).toString();
+		const outcss = fs.readFileSync(__dirname + '/' + CSS_SOURCE).toString();
 
-	bot.save(JS_PAGE, outjs, `${commitLink}: ${summary}`).then(() => {
+		await bot.save(JS_PAGE, outjs, `${commitLink}: ${summary}`);
 		console.log(`Successfully saved dist/catsuggest.js to ${JS_PAGE}`);
-	});
 
-	bot.save(CSS_PAGE, outcss, `${commitLink}: ${summary}`).then(() => {
+		await bot.save(CSS_PAGE, outcss, `${commitLink}: ${summary}`);
 		console.log(`Successfully saved catsuggest.css to ${CSS_PAGE}`);
-	});
-});
+	} catch (err) {
+		console.error(`Deploy failed: ${err && err.message ? err.message : err}`);
+		process.exitCode = 1;
+	}
+}
+
+deploy();
