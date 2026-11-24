@@ -25,6 +25,7 @@ const {
 	buildMembersSuggestions,
 	fetchMembersSuggestions,
 	fetchParentCatsSuggestions,
+	detectTemplateAddedCategories,
 } = await import('../src/suggestions.js');
 const { MAX_ANCESTOR_NODES_PER_LEVEL } = await import('../src/constants.js');
 
@@ -1789,5 +1790,25 @@ describe('buildMembersSuggestions', () => {
 		);
 
 		expect(suggestions.map((s) => s.title)).toEqual(['Məqalə A']);
+	});
+});
+
+describe('detectTemplateAddedCategories', () => {
+	it('ignores category links inside comments', async () => {
+		const mockGet = vi.fn(async () => ({
+			query: {
+				pages: {
+					1: { revisions: [{ '*': '<!-- [[Kateqoriya:FromTemplate]] -->\nText' }] },
+				},
+			},
+		}));
+
+		const cats = await detectTemplateAddedCategories(
+			{ get: mockGet },
+			'Page A',
+			['Kateqoriya:FromTemplate']
+		);
+
+		expect([...cats]).toEqual(['Kateqoriya:FromTemplate']);
 	});
 });

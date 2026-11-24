@@ -19,7 +19,7 @@ const {
 	log,
 } = require('./constants.js');
 const { fetchFullQuery, getApiBatchSize } = require('./api.js');
-const { fetchPageContent } = require('./edit.js');
+const { fetchPageContent, extractCategoryTitles } = require('./edit.js');
 /**
  * Deduplicate redirect-provenance pairs ({lang, name}) into a stable array.
  * Multiple sites can resolve the same target, and one target can be reached
@@ -1099,13 +1099,7 @@ async function detectTemplateAddedCategories(api, pageTitle, currentCats) {
 		return new Set();
 	}
 
-	// Parse direct [[Category:...]] / [[Kateqoriya:...]] from wikitext
-	const directCats = new Set();
-	const catRe = /\[\[\s*(?:Kateqoriya|Category)\s*:\s*([^\]|]+?)\s*(?:\|[^\]]*?)?\]\]/gi;
-	let match;
-	while ((match = catRe.exec(content)) !== null) {
-		directCats.add(CATEGORY_PREFIX + match[1].trim());
-	}
+	const directCats = extractCategoryTitles(content);
 
 	// Template-added = currentCats (from API/wgCategories) minus directCats (from wikitext)
 	const templateAdded = new Set();
