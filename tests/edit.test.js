@@ -309,20 +309,27 @@ describe('template category helpers', () => {
 		);
 	});
 
-	it('inserts new categories before a trailing stub template', () => {
-		const content = '<includeonly>text\n{{Foo-stub}}\n</includeonly>';
+	it('inserts new categories before a trailing draft template', () => {
+		const content = '<includeonly>text\n{{Foo-qaralama}}\n</includeonly>';
 		expect(
 			insertCategoriesIntoTagBlock(content, 'includeonly', [{ title: 'Kateqoriya:New' }])
-		).toBe('<includeonly>text\n[[Kateqoriya:New]]\n{{Foo-stub}}\n</includeonly>');
+		).toBe('<includeonly>text\n[[Kateqoriya:New]]\n{{Foo-qaralama}}\n</includeonly>');
 	});
 
-	it('ignores stub templates inside comments when choosing the insertion point', () => {
-		const content = '<includeonly>text\n<!-- {{Foo-stub}} -->\n</includeonly>';
+	it('ignores draft templates inside comments when choosing the insertion point', () => {
+		const content = '<includeonly>text\n<!-- {{Foo-qaralama}} -->\n</includeonly>';
 		expect(
 			insertCategoriesIntoTagBlock(content, 'includeonly', [{ title: 'Kateqoriya:New' }])
 		).toBe(
-			'<includeonly>text\n<!-- {{Foo-stub}} -->\n[[Kateqoriya:New]]\n</includeonly>'
+			'<includeonly>text\n<!-- {{Foo-qaralama}} -->\n[[Kateqoriya:New]]\n</includeonly>'
 		);
+	});
+
+	it('does not treat stub templates as drafts', () => {
+		const content = '<includeonly>text\n{{Foo-stub}}\n</includeonly>';
+		expect(
+			insertCategoriesIntoTagBlock(content, 'includeonly', [{ title: 'Kateqoriya:New' }])
+		).toBe('<includeonly>text\n{{Foo-stub}}\n[[Kateqoriya:New]]\n</includeonly>');
 	});
 });
 
