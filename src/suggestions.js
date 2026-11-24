@@ -596,13 +596,13 @@ async function buildParentCatsSuggestions(
 	const seenTitles = new Set();
 	let suggestions = [];
 	rawResults.forEach((r) => {
-		if (EXCLUDED_TITLES.has(r.title)) {
-			return;
-		}
-		if (!r.isWikidataDerived && isExcludedTitle(r.title, { allowTemplateCategories })) {
-			return;
-		}
 		const resolvedTitle = resolveRedirectTitle(r.title, azwikiRedirectMap);
+		if (EXCLUDED_TITLES.has(resolvedTitle)) {
+			return;
+		}
+		if (!r.isWikidataDerived && isExcludedTitle(resolvedTitle, { allowTemplateCategories })) {
+			return;
+		}
 		if (isCurrentCategoryTitle(resolvedTitle, currentCategoryTitle)) {
 			log('Filtered out current category:', resolvedTitle);
 			return;
@@ -1019,7 +1019,8 @@ async function buildMembersSuggestions(
 	const seenTitles = new Set();
 	const suggestions = [];
 	rawResults.forEach((item) => {
-		if (EXCLUDED_TITLES.has(item.title)) {
+		const resolvedTitle = resolveRedirectTitle(item.title, azwikiRedirectMap);
+		if (EXCLUDED_TITLES.has(resolvedTitle)) {
 			return;
 		}
 		const ns = new mw.Title(item.title).getNamespaceId();
@@ -1029,10 +1030,9 @@ async function buildMembersSuggestions(
 		) {
 			return;
 		}
-		if (isExcludedTitle(item.title)) {
+		if (isExcludedTitle(resolvedTitle)) {
 			return;
 		}
-		const resolvedTitle = resolveRedirectTitle(item.title, azwikiRedirectMap);
 		if (isCurrentCategoryTitle(resolvedTitle, currentCategoryTitle)) {
 			log('Filtered out current category:', resolvedTitle);
 			return;

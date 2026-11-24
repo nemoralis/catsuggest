@@ -646,6 +646,31 @@ describe('buildParentCatsSuggestions', () => {
 			'Kateqoriya:Riyaziyyat şablonları'
 		);
 	});
+
+	it('should apply exclusions to the redirect target, not the raw title', async () => {
+		const rawExcluded = 'Kateqoriya:2000-ci ildə doğulanlar (köhnə)';
+		const rawClean = 'Kateqoriya:Təmiz ad';
+		const mockGet = vi.fn(async () => ({
+			query: {
+				redirects: [
+					{ from: rawExcluded, to: 'Kateqoriya:Filosoflar' },
+					{ from: rawClean, to: 'Kateqoriya:Kişi' },
+				],
+				pages: {},
+			},
+		}));
+
+		const { suggestions } = await buildParentCatsSuggestions(
+			[
+				{ title: rawExcluded, sources: ['en'] },
+				{ title: rawClean, sources: ['en'] },
+			],
+			[],
+			{ get: mockGet }
+		);
+
+		expect(suggestions.map((s) => s.title)).toEqual(['Kateqoriya:Filosoflar']);
+	});
 });
 
 describe('buildExistingRemovals', () => {
@@ -1741,5 +1766,28 @@ describe('buildMembersSuggestions', () => {
 		);
 
 		expect(suggestions.map((s) => s.title)).toEqual(['Şablon:Foo']);
+	});
+
+	it('should apply exclusions to the redirect target, not the raw title', async () => {
+		const raw = 'Yaşayan insanlar (köhnə ad)';
+		const mockGet = vi.fn(async (params) => {
+			if (params.meta === 'userinfo') {
+				return { query: { userinfo: { rights: ['apihighlimits'] } } };
+			}
+			return {
+				query: {
+					redirects: [{ from: raw, to: 'Məqalə A' }],
+					pages: {},
+				},
+			};
+		});
+
+		const suggestions = await buildMembersSuggestions(
+			[{ title: raw, sources: ['en'] }],
+			{ members: new Set(), subcats: new Set() },
+			{ get: mockGet }
+		);
+
+		expect(suggestions.map((s) => s.title)).toEqual(['Məqalə A']);
 	});
 });
