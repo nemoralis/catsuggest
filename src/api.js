@@ -99,11 +99,20 @@ async function retryApiCall(fn, retries) {
 	let lastError;
 	for (let i = 0; i < attempts; i++) {
 		try {
-			return await Promise.resolve(fn()).catch((code, errResult) => {
-				const error = new Error(String(code));
-				Object.assign(error, { code, result: errResult, isApiError: true });
-				throw error;
-			});
+			const pending = fn();
+			// MediaWiki's jQuery promises reject with (code, result); a native promise
+			// only carries the first value, so take both before it gets converted.
+			const apiPromise =
+				pending && typeof pending.fail === 'function'
+					? new Promise((resolve, reject) => {
+							pending.then(resolve, (code, result) => {
+								const error = new Error(String(code));
+								Object.assign(error, { code, result, isApiError: true });
+								reject(error);
+							});
+						})
+					: pending;
+			return await apiPromise;
 		} catch (e) {
 			lastError = normalizeError(e);
 			const isLastAttempt = i === attempts - 1;

@@ -1,6 +1,6 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 
-const { fetchFullQuery, getApiBatchSize, resetApiBatchSizeCache, settleAll } = await import(
+const { fetchFullQuery, getApiBatchSize, resetApiBatchSizeCache, settleAll, retryApiCall } = await import(
 	'../src/api.js'
 );
 
@@ -14,6 +14,60 @@ describe('settleAll', () => {
 
 		expect(results[0]).toEqual({ status: 'fulfilled', value: 'ok' });
 		expect(results[1]).toEqual({ status: 'rejected', reason: error });
+	});
+});
+
+describe('retryApiCall', () => {
+	function jqueryReject(code, result) {
+		return {
+			fail() {},
+			then(_onFulfilled, onRejected) {
+				return Promise.resolve().then(() => onRejected(code, result));
+			},
+		};
+	}
+
+	it('keeps the API result from a MediaWiki promise rejection', async () => {
+		const api = {
+			get: vi.fn().mockReturnValueOnce(
+				jqueryReject('ratelimited', {
+					error: { info: 'Too many requests' },
+					xhr: { status: 429, statusText: 'Too Many Requests' },
+				})
+			),
+		};
+
+		await expect(retryApiCall(() => api.get({}), 1)).rejects.toMatchObject({
+			code: 'ratelimited',
+			result: { error: { info: 'Too many requests' } },
+			isApiError: true,
+		});
+	});
+
+	it('waits for the Retry-After header before retrying', async () => {
+		vi.useFakeTimers();
+		try {
+			const response = { query: { ok: true } };
+			const api = {
+				get: vi
+					.fn()
+					.mockReturnValueOnce(
+						jqueryReject('ratelimited', {
+							xhr: { getResponseHeader: () => '30' },
+						})
+					)
+					.mockResolvedValueOnce(response),
+			};
+			const call = retryApiCall(() => api.get({}), 2);
+
+			await vi.advanceTimersByTimeAsync(29999);
+			expect(api.get).toHaveBeenCalledTimes(1);
+			await vi.advanceTimersByTimeAsync(1);
+			await expect(call).resolves.toEqual(response);
+			expect(api.get).toHaveBeenCalledTimes(2);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });
 
