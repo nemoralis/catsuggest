@@ -88,7 +88,7 @@ describe('addParentCategoriesEdit', () => {
 	function createApi(captured, content = '') {
 		return {
 			get: vi.fn(async () => ({
-				query: { pages: { 1: { revisions: [{ revid: 42, '*': content }] } } },
+				query: { pages: { 1: { title: 'Page A', revisions: [{ revid: 42, '*': content }] } } },
 			})),
 			postWithEditToken: vi.fn(async (params) => {
 				captured.push(params);
@@ -113,6 +113,7 @@ describe('addParentCategoriesEdit', () => {
 		);
 
 		expect(captured[0].appendtext).toBe('\n[[Kateqoriya:Foo|Z]]\n[[Kateqoriya:Bar]]');
+		expect(captured[0].redirect).toBe(true);
 		expect(captured[0].summary).toBe('[[VP:Q/KT|Kateqoriya təklifçisi]] vasitəsilə +2 kateqoriya');
 		expect(captured[0].minor).toBe(false);
 	});
@@ -131,6 +132,8 @@ describe('addParentCategoriesEdit', () => {
 
 		expect(captured[0].text).toBe('text\n[[Kateqoriya:Foo|Z]]');
 		expect(captured[0].appendtext).toBeUndefined();
+		expect(captured[0].redirect).toBeUndefined();
+		expect(captured[0].title).toBe('Page A');
 		expect(captured[0].baserevid).toBe(42);
 		expect(captured[0].summary).toBe(
 			'[[VP:Q/KT|Kateqoriya təklifçisi]] vasitəsilə +1 kateqoriya, −1 kateqoriya'
@@ -148,6 +151,28 @@ describe('addParentCategoriesEdit', () => {
 			addParentCategoriesEdit(api, 'Page A', [], ['Kateqoriya:Old'], vi.fn())
 		).rejects.toThrow('Səhifənin məzmunu tapılmadı');
 		expect(captured).toHaveLength(0);
+	});
+
+	it('edits the resolved target when a removal page is a redirect', async () => {
+		const captured = [];
+		const api = createApi(captured, '[[Kateqoriya:Old]]\ntext');
+		api.get.mockResolvedValueOnce({
+			query: {
+				redirects: [{ from: 'Page A', to: 'Page B' }],
+				pages: {
+					2: {
+						title: 'Page B',
+						revisions: [{ revid: 42, '*': '[[Kateqoriya:Old]]\ntext' }],
+					},
+				},
+			},
+		});
+
+		await addParentCategoriesEdit(api, 'Page A', [], ['Kateqoriya:Old'], (s) => s);
+
+		expect(captured[0].title).toBe('Page B');
+		expect(captured[0].redirect).toBeUndefined();
+		expect(captured[0].text).toBe('text');
 	});
 });
 

@@ -441,8 +441,8 @@ async function addParentCategoriesEdit(api, pageTitle, titlesToAdd, titlesToRemo
 	const params = {
 		summary,
 		minor: titlesToAdd.length < 2,
-		redirect: true,
 	};
+	let editTitle = pageTitle;
 
 	if (titlesToRemove.length > 0) {
 		const page = await fetchPageContentMeta(api, pageTitle);
@@ -470,11 +470,13 @@ async function addParentCategoriesEdit(api, pageTitle, titlesToAdd, titlesToRemo
 
 		params.text = content;
 		params.baserevid = page.revid;
+		editTitle = page.title;
 	} else {
 		params.appendtext = '\n' + titlesToAdd.map(formatCategoryLink).join('\n');
+		params.redirect = true;
 	}
 
-	await editPage(api, pageTitle, params);
+	await editPage(api, editTitle, params);
 }
 
 /**
