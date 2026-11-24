@@ -557,9 +557,14 @@ async function buildParentCatsSuggestions(
 
 	await fetchParentsForTitles(suggestionTitles);
 
-	const { ancestors: allAncestors } = await walkAncestors(currentCats, parentMap, {
+	const { ancestors: allAncestors, truncated } = await walkAncestors(currentCats, parentMap, {
 		fetchParents: fetchParentsForTitles,
 	});
+	if (truncated) {
+		throw new Error(
+			'Kateqoriya əlaqələri çox sıx olduğu üçün təkliflər hesablana bilmədi. Zəhmət olmasa, kateqoriyaları əl ilə yoxlayın.'
+		);
+	}
 
 	log('Ancestors of current cats:', Array.from(allAncestors));
 

@@ -403,7 +403,7 @@ describe('buildParentCatsSuggestions', () => {
 		]);
 	});
 
-	it('should cap the number of unique nodes fetched per ancestor level', async () => {
+	it('should fail suggestions when the ancestor walk is truncated', async () => {
 		const parents = Array.from(
 			{ length: MAX_ANCESTOR_NODES_PER_LEVEL + 1 },
 			(_, i) => `Kateqoriya:P${i}`
@@ -426,11 +426,16 @@ describe('buildParentCatsSuggestions', () => {
 		});
 
 		const consoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
+		let error;
 		try {
 			await buildParentCatsSuggestions([], ['Kateqoriya:A'], { get: mockGet });
+		} catch (err) {
+			error = err;
 		} finally {
 			consoleLog.mockRestore();
 		}
+		expect(error).toBeInstanceOf(Error);
+		expect(error.message).toContain('Kateqoriya əlaqələri çox sıx');
 
 		const requestedTitles = new Set();
 		mockGet.mock.calls.forEach(([params]) => {
