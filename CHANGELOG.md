@@ -6,6 +6,27 @@ All notable changes to CatSuggest are documented here. The format follows
 
 ## [Unreleased]
 
+## [2.2.3] - 2026-11-25
+
+### Changed
+
+- Parent-category suggestions now fail with an error when the ancestor walk hits its node cap,
+  instead of silently offering incomplete suggestions.
+- Categories are inserted before trailing `qaralama` stub templates in template `/doc` and
+  `<noinclude>` blocks.
+- Foreign category fetching now shares one code path between both modes.
+- Removed unused edit-group, help-link and failure-list code.
+
+### Fixed
+
+- Full-text parent-category removals send `baserevid` and cannot overwrite concurrent edits.
+- API retries preserve the full rejection details and the `Retry-After` header.
+- Deployment stops on the first failed save instead of reporting success after a partial publish.
+- Title exclusions are checked against resolved redirect targets.
+- Redirect `appendonly` edits are no longer sent with full-text removals.
+- `/doc` pages without an `edit` action are treated as editable.
+- Parent-category detection now uses the same category-link parser as the edit logic.
+
 ## [2.2.2] - 2026-11-21
 
 ### Added
