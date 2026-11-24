@@ -23,7 +23,6 @@ const ANCESTOR_CHECK_DEPTH = 4;
 // Safety valve for dense/cyclic category graphs; normal pages stay well below this.
 const MAX_ANCESTOR_NODES_PER_LEVEL = 1000;
 /* global __CATSUGGEST_DEV__ */
-const ENABLE_EDIT_GROUP_LINKS = false;
 // esbuild replaces the flag with a boolean in browser builds. The typeof guard
 // keeps Node diagnostics scripts (which don't define it) working.
 const DEBUG = typeof __CATSUGGEST_DEV__ === 'boolean' ? __CATSUGGEST_DEV__ : false;
@@ -71,10 +70,6 @@ function debounce(fn, delay) {
 			fn.apply(context, args);
 		}, delay);
 	};
-}
-
-function generateBatchId() {
-	return Math.random().toString(16).slice(2, 10) + Math.random().toString(16).slice(2, 10);
 }
 
 const AZ_PLURAL_SUFFIXES = ['lar', 'lər'];
@@ -158,7 +153,6 @@ module.exports = {
 	CONFIRM_BATCH_THRESHOLD,
 	ANCESTOR_CHECK_DEPTH,
 	MAX_ANCESTOR_NODES_PER_LEVEL,
-	ENABLE_EDIT_GROUP_LINKS,
 	DEBUG,
 	CACHE_TTL_LANGUAGES,
 	CACHE_TTL_TREE,
@@ -190,5 +184,4 @@ module.exports = {
 	log,
 	escapeRegex,
 	debounce,
-	generateBatchId,
 };

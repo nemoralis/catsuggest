@@ -639,12 +639,10 @@ const {
 	MAX_DEPTH1_SUBCATS,
 	MAX_DEPTH2_SUBCATS,
 	DEPTH2_BATCH_SIZE,
-	ENABLE_EDIT_GROUP_LINKS,
 	isTopicalTemplateCategory,
 	log,
 	debounce,
 	escapeRegex,
-	generateBatchId,
 } = require('./constants.js');
 const {
 	sleep,
@@ -1861,13 +1859,6 @@ export default {
 					return;
 				}
 
-				const editGroupSuffix =
-					ENABLE_EDIT_GROUP_LINKS && itemsToEdit.length >= 8
-						? ' ([[:toolforge:editgroups-azwiki/b/CS/' +
-							generateBatchId() +
-							'|detallar]])'
-						: '';
-
 				this.totalProcessingCount = itemsToEdit.length;
 				// Clear the pre-edit member list before the first edit. If the
 				// browser is closed mid-batch, the next fetch still reflects the
@@ -1902,7 +1893,6 @@ export default {
 								this.api,
 								item.title,
 								categoryTag,
-								editGroupSuffix,
 								pageName
 							);
 						}
@@ -1951,14 +1941,6 @@ export default {
 
 		getPageUrl(title) {
 			return mw.util.getUrl(title);
-		},
-
-		openGadgetHelp() {
-			window.open(
-				this.getPageUrl('Vikipediya:Qadcetlər/Kateqoriya təklifçisi'),
-				'_blank',
-				'noopener'
-			);
 		},
 
 		// Codex renders the dialog title itself, so attach the help link to it

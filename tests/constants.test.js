@@ -7,7 +7,6 @@ const {
 	TEMPLATE_NAMESPACE,
 	escapeRegex,
 	debounce,
-	generateBatchId,
 	REMOVAL_EXCLUDED_KEYWORDS,
 	isSameCategoryIgnoringPlural,
 	isNonTopicalTemplateCategory,
@@ -145,19 +144,6 @@ describe('REMOVAL_EXCLUDED_KEYWORDS', () => {
 		expect(isExcluded('Kateqoriya:2004-cü ilin filmləri')).toBe(true);
 		expect(isExcluded('Kateqoriya:2023-cü ilin filmləri')).toBe(true);
 		expect(isExcluded('Kateqoriya:ABŞ filmləri')).toBe(false);
-	});
-});
-
-describe('generateBatchId', () => {
-	it('should return a 16-character hex string', () => {
-		const id = generateBatchId();
-		expect(id).toMatch(/^[0-9a-f]{16}$/);
-	});
-
-	it('should return different values on each call', () => {
-		const id1 = generateBatchId();
-		const id2 = generateBatchId();
-		expect(id1).not.toBe(id2);
 	});
 });
 

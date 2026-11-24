@@ -567,11 +567,11 @@ async function refreshTemplateLinks(api, templateTitle) {
 	return true;
 }
 
-async function addCategoryToMembersEdit(api, itemTitle, categoryTag, editGroupSuffix, pageName) {
+async function addCategoryToMembersEdit(api, itemTitle, categoryTag, pageName) {
 	await editPage(api, itemTitle, {
 		appendtext: categoryTag,
 		minor: true,
-		summary: `[[VP:Q/KT|Kateqoriya təklifçisi]] vasitəsilə +[[${pageName.replace(/_/g, ' ')}]]${editGroupSuffix}`,
+		summary: `[[VP:Q/KT|Kateqoriya təklifçisi]] vasitəsilə +[[${pageName.replace(/_/g, ' ')}]]`,
 		redirect: true,
 	});
 }
