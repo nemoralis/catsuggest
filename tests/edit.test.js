@@ -88,7 +88,7 @@ describe('addParentCategoriesEdit', () => {
 	function createApi(captured, content = '') {
 		return {
 			get: vi.fn(async () => ({
-				query: { pages: { 1: { revisions: [{ '*': content }] } } },
+				query: { pages: { 1: { revisions: [{ revid: 42, '*': content }] } } },
 			})),
 			postWithEditToken: vi.fn(async (params) => {
 				captured.push(params);
@@ -131,9 +131,23 @@ describe('addParentCategoriesEdit', () => {
 
 		expect(captured[0].text).toBe('text\n[[Kateqoriya:Foo|Z]]');
 		expect(captured[0].appendtext).toBeUndefined();
+		expect(captured[0].baserevid).toBe(42);
 		expect(captured[0].summary).toBe(
 			'[[VP:Q/KT|Kateqoriya təklifçisi]] vasitəsilə +1 kateqoriya, −1 kateqoriya'
 		);
+	});
+
+	it('does not post a removal edit when the page is missing', async () => {
+		const captured = [];
+		const api = createApi(captured);
+		api.get.mockResolvedValueOnce({
+			query: { pages: { '-1': { title: 'Page A', missing: '' } } },
+		});
+
+		await expect(
+			addParentCategoriesEdit(api, 'Page A', [], ['Kateqoriya:Old'], vi.fn())
+		).rejects.toThrow('Səhifənin məzmunu tapılmadı');
+		expect(captured).toHaveLength(0);
 	});
 });
 

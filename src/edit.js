@@ -441,10 +441,17 @@ async function addParentCategoriesEdit(api, pageTitle, titlesToAdd, titlesToRemo
 	const params = {
 		summary,
 		minor: titlesToAdd.length < 2,
+		redirect: true,
 	};
 
 	if (titlesToRemove.length > 0) {
-		let content = await fetchPageContent(api, pageTitle);
+		const page = await fetchPageContentMeta(api, pageTitle);
+		if (!page) {
+			throw new Error(
+				'Səhifənin məzmunu tapılmadı. Səhifə silinmiş və ya yaradılmamış ola bilər.'
+			);
+		}
+		let content = page.content;
 
 		titlesToRemove.forEach((t) => {
 			const catName = t.replace(/^(?:Kateqoriya|Category):/i, '');
@@ -462,9 +469,9 @@ async function addParentCategoriesEdit(api, pageTitle, titlesToAdd, titlesToRemo
 		}
 
 		params.text = content;
+		params.baserevid = page.revid;
 	} else {
 		params.appendtext = '\n' + titlesToAdd.map(formatCategoryLink).join('\n');
-		params.redirect = true;
 	}
 
 	await editPage(api, pageTitle, params);
