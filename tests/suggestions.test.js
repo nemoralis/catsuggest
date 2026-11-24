@@ -1248,6 +1248,28 @@ describe('fetchParentCatsSuggestions', () => {
 			['Kateqoriya:Vətənpərvər musiqisi', [{ lang: 'en', name: 'Category:Redirect parent' }]],
 		]);
 	});
+
+	it('should read the parent-cats cache key and skip the API', async () => {
+		global.mw.storage.get = vi.fn((key) => {
+			if (key === 'catsuggest-cache-2-Q7214468-enwiki') {
+				return JSON.stringify([{ t: 'Kateqoriya:Vətənpərvər musiqisi', r: false }]);
+			}
+			return null;
+		});
+		const mockGet = vi.fn(async () => ({ query: { pages: {} } }));
+
+		const globalCatToSites = new Map();
+		await fetchParentCatsSuggestions(
+			{ get: mockGet },
+			{ title: 'Category:Patriotic songs', site: 'enwiki' },
+			'en',
+			globalCatToSites,
+			'Q7214468'
+		);
+
+		expect(mockGet).not.toHaveBeenCalled();
+		expect(globalCatToSites.get('Kateqoriya:Vətənpərvər musiqisi')).toEqual(new Set(['en']));
+	});
 });
 
 describe('buildMembersSuggestions', () => {

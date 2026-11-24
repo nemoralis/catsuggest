@@ -246,20 +246,139 @@ function resolveRedirectTitle(title, redirectMap) {
 	return current;
 }
 /**
- * Fetch parent categories of a page from a foreign wiki via langlinks.
- * Results are cached in mw.storage and added to globalCatToSites map.
- * Titles reached by following a redirect (targets in the API's `query.redirects`)
- * are additionally recorded in redirectResolvedCatToSites so the UI can flag them,
- * and the foreign title(s) that produced each suggestion in foreignNamesByTitle so
- * the UI can explain the provenance (e.g. in a chip tooltip).
+ * Fetch a foreign wiki's categories or members and translate them to azwiki
+ * titles via langlinks. Shared by the two fetchers; only the cache prefix,
+ * log label and generator query differ between them.
  *
  * @param {Object} foreignApi
  * @param {Object} siteData
  * @param {string} lang
  * @param {Map} globalCatToSites
  * @param {string} qid
- * @param {Map} [redirectResolvedCatToSites] - Titles reached via foreign-wiki redirect resolution (lang→set)
- * @param {Map} [foreignNamesByTitle] - Foreign title(s) per azwiki title (array of {lang, name})
+ * @param {Object} options
+ * @param {string} options.cachePrefix
+ * @param {string} options.label
+ * @param {Object} options.params - Generator-specific query parameters
+ * @param {Map} [redirectResolvedCatToSites]
+ * @param {Map} [foreignNamesByTitle]
+ * @return {Promise|undefined}
+ */
+async function fetchForeignSuggestions(
+	foreignApi,
+	siteData,
+	lang,
+	globalCatToSites,
+	qid,
+	{ cachePrefix, label, params: queryParams },
+	redirectResolvedCatToSites = new Map(),
+	foreignNamesByTitle = new Map()
+) {
+	const cacheKey = cachePrefix + qid + '-' + siteData.site;
+	const cached = mw.storage.get(cacheKey);
+	if (cached) {
+		try {
+			const cachedItems = JSON.parse(cached);
+			if (Array.isArray(cachedItems)) {
+				log(label, siteData.site, '→ cache hit:', cachedItems);
+				cachedItems.forEach((entry) => {
+					const catTitle = typeof entry === 'string' ? entry : entry.t;
+					if (!globalCatToSites.has(catTitle)) {
+						globalCatToSites.set(catTitle, new Set());
+					}
+					globalCatToSites.get(catTitle).add(lang);
+					if (entry && entry.r) {
+						if (!redirectResolvedCatToSites.has(catTitle)) {
+							redirectResolvedCatToSites.set(catTitle, new Set());
+						}
+						redirectResolvedCatToSites.get(catTitle).add(lang);
+					}
+					if (entry && Array.isArray(entry.n)) {
+						if (!foreignNamesByTitle.has(catTitle)) {
+							foreignNamesByTitle.set(catTitle, []);
+						}
+						entry.n.forEach((name) => {
+							foreignNamesByTitle.get(catTitle).push({ lang, name });
+						});
+					}
+				});
+				return;
+			}
+			mw.storage.remove(cacheKey);
+		} catch (_err) {
+			mw.log.warn(label, 'foreign cache error:', _err);
+			mw.storage.remove(cacheKey);
+		}
+	}
+
+	log(label, siteData.site, '→ fetching from API...');
+	return fetchFullQuery(
+		foreignApi,
+		Object.assign({ action: 'query' }, queryParams, {
+			prop: 'langlinks',
+			lllang: CURRENT_WIKI.replace('wiki', ''),
+			lllimit: 'max',
+		})
+	).then((resp) => {
+		const pages = resp.pages || {};
+		const resolvedTargets = new Set((resp.redirects || []).map((r) => r.to));
+		const resolvedTargetToNames = new Map();
+		(resp.redirects || []).forEach((r) => {
+			if (!resolvedTargetToNames.has(r.to)) {
+				resolvedTargetToNames.set(r.to, []);
+			}
+			resolvedTargetToNames.get(r.to).push(r.from);
+		});
+		const azwikiCatsForCache = [];
+		Object.values(pages).forEach((p) => {
+			if (p.langlinks && p.langlinks.length > 0) {
+				const azwikiTitle = p.langlinks[0]['*'];
+				const isRedirectResolved = resolvedTargets.has(p.title);
+				const foreignNames = isRedirectResolved
+					? resolvedTargetToNames.get(p.title) || []
+					: [p.title];
+				azwikiCatsForCache.push({
+					t: azwikiTitle,
+					r: isRedirectResolved,
+					n: foreignNames,
+				});
+				if (!globalCatToSites.has(azwikiTitle)) {
+					globalCatToSites.set(azwikiTitle, new Set());
+				}
+				globalCatToSites.get(azwikiTitle).add(lang);
+				if (isRedirectResolved) {
+					if (!redirectResolvedCatToSites.has(azwikiTitle)) {
+						redirectResolvedCatToSites.set(azwikiTitle, new Set());
+					}
+					redirectResolvedCatToSites.get(azwikiTitle).add(lang);
+				}
+				if (!foreignNamesByTitle.has(azwikiTitle)) {
+					foreignNamesByTitle.set(azwikiTitle, []);
+				}
+				foreignNames.forEach((name) => {
+					foreignNamesByTitle.get(azwikiTitle).push({ lang, name });
+				});
+			}
+		});
+		if (azwikiCatsForCache.length > 0) {
+			log(label, siteData.site, '→ API result:', azwikiCatsForCache);
+			mw.storage.set(cacheKey, JSON.stringify(azwikiCatsForCache), CACHE_TTL_FOREIGN);
+		}
+	});
+}
+
+/**
+ * Fetch parent categories of a page from a foreign wiki via langlinks.
+ * Results are cached in mw.storage and added to globalCatToSites map.
+ * Titles reached by following a redirect are flagged in redirectResolvedCatToSites
+ * and their foreign names recorded in foreignNamesByTitle.
+ *
+ * @param {Object} foreignApi
+ * @param {Object} siteData
+ * @param {string} lang
+ * @param {Map} globalCatToSites
+ * @param {string} qid
+ * @param {Map} [redirectResolvedCatToSites]
+ * @param {Map} [foreignNamesByTitle]
  * @return {Promise|undefined}
  */
 function fetchParentCatsSuggestions(
@@ -271,112 +390,32 @@ function fetchParentCatsSuggestions(
 	redirectResolvedCatToSites = new Map(),
 	foreignNamesByTitle = new Map()
 ) {
-	const cacheKey = CACHE_KEY_FOREIGN_PREFIX + qid + '-' + siteData.site;
-	const cached = mw.storage.get(cacheKey);
-	if (cached) {
-		try {
-			const cachedItems = JSON.parse(cached);
-			if (Array.isArray(cachedItems)) {
-				log('[parentCats]', siteData.site, '→ cache hit:', cachedItems);
-				cachedItems.forEach((entry) => {
-					const catTitle = typeof entry === 'string' ? entry : entry.t;
-					if (!globalCatToSites.has(catTitle)) {
-						globalCatToSites.set(catTitle, new Set());
-					}
-					globalCatToSites.get(catTitle).add(lang);
-					if (entry && entry.r) {
-						if (!redirectResolvedCatToSites.has(catTitle)) {
-							redirectResolvedCatToSites.set(catTitle, new Set());
-						}
-						redirectResolvedCatToSites.get(catTitle).add(lang);
-					}
-					if (entry && Array.isArray(entry.n)) {
-						if (!foreignNamesByTitle.has(catTitle)) {
-							foreignNamesByTitle.set(catTitle, []);
-						}
-						entry.n.forEach((name) => {
-							foreignNamesByTitle.get(catTitle).push({ lang, name });
-						});
-					}
-				});
-				return;
-			}
-			mw.storage.remove(cacheKey);
-		} catch (_err) {
-			mw.log.warn('Foreign cache error:', _err);
-			mw.storage.remove(cacheKey);
-		}
-	}
-
-	log('[parentCats]', siteData.site, '→ fetching from API...');
-	return fetchFullQuery(foreignApi, {
-		action: 'query',
-		generator: 'categories',
-		titles: siteData.title,
-		gcllimit: 'max',
-		gclshow: '!hidden',
-		prop: 'langlinks',
-		lllang: CURRENT_WIKI.replace('wiki', ''),
-		lllimit: 'max',
-	}).then((catResp) => {
-		const pages = catResp.pages || {};
-		// A page whose title is a redirect-resolution target only appeared because
-		// the API followed a redirect (e.g. a song redirect resolving to the article
-		// it lives inside). Translating it via langlinks would use the unrelated
-		// target's az title, so flag it for the suggestion list.
-		const resolvedTargets = new Set((catResp.redirects || []).map((r) => r.to));
-		const resolvedTargetToNames = new Map();
-		(catResp.redirects || []).forEach((r) => {
-			if (!resolvedTargetToNames.has(r.to)) {
-				resolvedTargetToNames.set(r.to, []);
-			}
-			resolvedTargetToNames.get(r.to).push(r.from);
-		});
-		const azwikiCatsForCache = [];
-		Object.values(pages).forEach((p) => {
-			if (p.langlinks && p.langlinks.length > 0) {
-				const azwikiTitle = p.langlinks[0]['*'];
-				const isRedirectResolved = resolvedTargets.has(p.title);
-				const foreignNames = isRedirectResolved
-					? resolvedTargetToNames.get(p.title) || []
-					: [p.title];
-				azwikiCatsForCache.push({
-					t: azwikiTitle,
-					r: isRedirectResolved,
-					n: foreignNames,
-				});
-				if (!globalCatToSites.has(azwikiTitle)) {
-					globalCatToSites.set(azwikiTitle, new Set());
-				}
-				globalCatToSites.get(azwikiTitle).add(lang);
-				if (isRedirectResolved) {
-					if (!redirectResolvedCatToSites.has(azwikiTitle)) {
-						redirectResolvedCatToSites.set(azwikiTitle, new Set());
-					}
-					redirectResolvedCatToSites.get(azwikiTitle).add(lang);
-				}
-				if (!foreignNamesByTitle.has(azwikiTitle)) {
-					foreignNamesByTitle.set(azwikiTitle, []);
-				}
-				foreignNames.forEach((name) => {
-					foreignNamesByTitle.get(azwikiTitle).push({ lang, name });
-				});
-			}
-		});
-		if (azwikiCatsForCache.length > 0) {
-			log('[parentCats]', siteData.site, '→ API result:', azwikiCatsForCache);
-			mw.storage.set(cacheKey, JSON.stringify(azwikiCatsForCache), CACHE_TTL_FOREIGN);
-		}
-	});
+	return fetchForeignSuggestions(
+		foreignApi,
+		siteData,
+		lang,
+		globalCatToSites,
+		qid,
+		{
+			cachePrefix: CACHE_KEY_FOREIGN_PREFIX,
+			label: '[parentCats]',
+			params: {
+				generator: 'categories',
+				titles: siteData.title,
+				gcllimit: 'max',
+				gclshow: '!hidden',
+			},
+		},
+		redirectResolvedCatToSites,
+		foreignNamesByTitle
+	);
 }
 
 /**
- * Fetch category members (pages + subcats) of a page from a foreign wiki via langlinks.
+ * Fetch category members of a page from a foreign wiki via langlinks.
  * Results are cached in mw.storage and added to globalCatToSites map.
- * Titles reached by following a redirect (targets in the API's `query.redirects`)
- * are additionally recorded in redirectResolvedCatToSites so the UI can flag them,
- * and the foreign title(s) that produced each suggestion in foreignNamesByTitle so
- * the UI can explain the provenance (e.g. in a chip tooltip).
+ * Titles reached by following a redirect are flagged in redirectResolvedCatToSites
+ * and their foreign names recorded in foreignNamesByTitle.
  *
  * @param {Object} foreignApi
  * @param {Object} siteData
@@ -384,7 +423,7 @@ function fetchParentCatsSuggestions(
  * @param {Map} globalCatToSites
  * @param {string} qid
  * @param {Map} [redirectResolvedCatToSites]
- * @param {Map} [foreignNamesByTitle] - Foreign title(s) per azwiki title (array of {lang, name})
+ * @param {Map} [foreignNamesByTitle]
  * @return {Promise|undefined}
  */
 function fetchMembersSuggestions(
@@ -396,101 +435,25 @@ function fetchMembersSuggestions(
 	redirectResolvedCatToSites = new Map(),
 	foreignNamesByTitle = new Map()
 ) {
-	const cacheKey = CACHE_KEY_MEMBERS_FOREIGN_PREFIX + qid + '-' + siteData.site;
-	const cached = mw.storage.get(cacheKey);
-	if (cached) {
-		try {
-			const cachedItems = JSON.parse(cached);
-			if (Array.isArray(cachedItems)) {
-				log('[members]', siteData.site, '→ cache hit:', cachedItems);
-				cachedItems.forEach((entry) => {
-					const catTitle = typeof entry === 'string' ? entry : entry.t;
-					if (!globalCatToSites.has(catTitle)) {
-						globalCatToSites.set(catTitle, new Set());
-					}
-					globalCatToSites.get(catTitle).add(lang);
-					if (entry && entry.r) {
-						if (!redirectResolvedCatToSites.has(catTitle)) {
-							redirectResolvedCatToSites.set(catTitle, new Set());
-						}
-						redirectResolvedCatToSites.get(catTitle).add(lang);
-					}
-					if (entry && Array.isArray(entry.n)) {
-						if (!foreignNamesByTitle.has(catTitle)) {
-							foreignNamesByTitle.set(catTitle, []);
-						}
-						entry.n.forEach((name) => {
-							foreignNamesByTitle.get(catTitle).push({ lang, name });
-						});
-					}
-				});
-				return;
-			}
-			mw.storage.remove(cacheKey);
-		} catch (_err) {
-			mw.log.warn('Members foreign cache error:', _err);
-			mw.storage.remove(cacheKey);
-		}
-	}
-
-	log('[members]', siteData.site, '→ fetching from API...');
-	// See fetchParentCatsSuggestions: flag members reached via redirect resolution
-	// so the UI can indicate their provenance instead of silently using the
-	// unrelated target's langlink.
-	return fetchFullQuery(foreignApi, {
-		action: 'query',
-		generator: 'categorymembers',
-		gcmtitle: siteData.title,
-		gcmlimit: 'max',
-		gcmtype: 'page|subcat',
-		prop: 'langlinks',
-		lllang: CURRENT_WIKI.replace('wiki', ''),
-		lllimit: 'max',
-	}).then((memberResp) => {
-		const pages = memberResp.pages || {};
-		const resolvedTargets = new Set((memberResp.redirects || []).map((r) => r.to));
-		const resolvedTargetToNames = new Map();
-		(memberResp.redirects || []).forEach((r) => {
-			if (!resolvedTargetToNames.has(r.to)) {
-				resolvedTargetToNames.set(r.to, []);
-			}
-			resolvedTargetToNames.get(r.to).push(r.from);
-		});
-		const azwikiCatsForCache = [];
-		Object.values(pages).forEach((p) => {
-			if (p.langlinks && p.langlinks.length > 0) {
-				const azwikiTitle = p.langlinks[0]['*'];
-				const isRedirectResolved = resolvedTargets.has(p.title);
-				const foreignNames = isRedirectResolved
-					? resolvedTargetToNames.get(p.title) || []
-					: [p.title];
-				azwikiCatsForCache.push({
-					t: azwikiTitle,
-					r: isRedirectResolved,
-					n: foreignNames,
-				});
-				if (!globalCatToSites.has(azwikiTitle)) {
-					globalCatToSites.set(azwikiTitle, new Set());
-				}
-				globalCatToSites.get(azwikiTitle).add(lang);
-				if (isRedirectResolved) {
-					if (!redirectResolvedCatToSites.has(azwikiTitle)) {
-						redirectResolvedCatToSites.set(azwikiTitle, new Set());
-					}
-					redirectResolvedCatToSites.get(azwikiTitle).add(lang);
-				}
-				if (!foreignNamesByTitle.has(azwikiTitle)) {
-					foreignNamesByTitle.set(azwikiTitle, []);
-				}
-				foreignNames.forEach((name) => {
-					foreignNamesByTitle.get(azwikiTitle).push({ lang, name });
-				});
-			}
-		});
-		if (azwikiCatsForCache.length > 0) {
-			mw.storage.set(cacheKey, JSON.stringify(azwikiCatsForCache), CACHE_TTL_FOREIGN);
-		}
-	});
+	return fetchForeignSuggestions(
+		foreignApi,
+		siteData,
+		lang,
+		globalCatToSites,
+		qid,
+		{
+			cachePrefix: CACHE_KEY_MEMBERS_FOREIGN_PREFIX,
+			label: '[members]',
+			params: {
+				generator: 'categorymembers',
+				gcmtitle: siteData.title,
+				gcmlimit: 'max',
+				gcmtype: 'page|subcat',
+			},
+		},
+		redirectResolvedCatToSites,
+		foreignNamesByTitle
+	);
 }
 
 /**
